@@ -1,16 +1,11 @@
-# lua-xmlparser
+# xmllpegparser
 
-`xmlparser` is an fast XML parser written entirely in Lua 5.
-
-`xmllpegparser` is an implementation with a visitor and using [`lpeg`](http://www.inf.puc-rio.br/~roberto/lpeg) for even more speed and features.
+`xmllpegparser` is an fast XML parser who uses [`lpeg`](http://www.inf.puc-rio.br/~roberto/lpeg) library.
 
 <!-- summary -->
 1. [Installation](#installation)
 2. [Test](#test)
-3. [xmlparser API](#xmlparser-api)
-    1. [Document structure](#document-structure)
-    2. [Limitations](#limitations)
-4. [xmllpegparser API](#xmllpegparser-api)
+3. [xmllpegparser API](#xmllpegparser-api)
     1. [Document structure (default parser)](#document-structure-default-parser)
     2. [Visitor structure](#visitor-structure)
     3. [Default parser limitations](#default-parser-limitations)
@@ -21,12 +16,10 @@
 ## Installation
 
 ```bash
-luarocks install --local https://raw.githubusercontent.com/jonathanpoelen/lua-xmlparser/master/xmlparser-2.0-4.rockspec
-luarocks install --local https://raw.githubusercontent.com/jonathanpoelen/lua-xmlparser/master/xmllpegparser-2.1-0.rockspec
+luarocks install --local https://raw.githubusercontent.com/jonathanpoelen/lua-xmllpegparser/master/xmllpegparser-2.1-0.rockspec
 
-# or in your local directory lua-xmlparser
+# or in your local directory lua-xmllpegparser
 
-luarocks make --local xmlparser-2.0-4.rockspec
 luarocks make --local xmllpegparser-2.1-0.rockspec
 ```
 
@@ -35,48 +28,10 @@ luarocks make --local xmllpegparser-2.1-0.rockspec
 Run `./example.lua`.
 
 ```
-./example.lua [xmlfile [enablelpeg [replaceentities]]]`
+./example.lua xmlfile [replaceentities]
+```
 
-`enablelpeg` = anything, only to enable xmllpegparser.
 `replaceentities` = anything, only to enable replacement of entities.
-```
-
-- `./example.lua file.xml '' x`: xmlparser with replacement of entities
-- `./example.lua file.xml x`: xmllpegparser
-
-
-## xmlparser API
-
-- `xmlparser.parse(xmlstring[, subEntities])`: Return a document `table` (see below).
-If `subEntities` is `true`, the entities are replaced and a `tentity` member is added to the document `table`.
-- `xmlparser.parseFile(filename[, subEntities])`: Return a tuple `document table, error file`.
-- `xmlparser.defaultEntitiyTable()`: Return the default entity table (` { quot='"', ... }`).
-- `xmlparser.createEntityTable(docEntities[, resultEntities])`: Create an entity table from the document entity table. Return `resultEntities`.
-- `xmlparser.replaceEntities(s, entityTable)`: Return a `string`.
-
-### Document structure
-
-```lua
-document = {
-  children = {
-    { text=string } or { tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
-    ...
-  },
-  entities = { { name=string, value=string }, ... },
-  tentities = { name=value, ... } -- only if subEntities = true
-}
-```
-
-
-### Limitations
-
-- Non-validating
-- No DTD support
-- No CDATA support
-- Fails to detect any errors
-- Ignore processing instructions
-- Ignore DOCTYPE, parse only ENTITY
-- If several attributes have the same name (allowed by the standard), only the last is kept.
 
 
 ## xmllpegparser API
@@ -156,4 +111,4 @@ Each member is optionnal.
 [MIT license](LICENSE)
 
 
-<!-- https://github.com/jonathanpoelen/lua-xmlparser -->
+<!-- https://github.com/jonathanpoelen/lua-xmllpegparser -->
