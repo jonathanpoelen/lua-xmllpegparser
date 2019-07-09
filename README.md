@@ -1,6 +1,6 @@
 # xmllpegparser
 
-`xmllpegparser` is an fast XML parser who uses [`lpeg`](http://www.inf.puc-rio.br/~roberto/lpeg) library.
+`xmllpegparser` is a fast XML parser who uses [`LPeg`](http://www.inf.puc-rio.br/~roberto/lpeg) library.
 
 <!-- summary -->
 1. [Installation](#installation)

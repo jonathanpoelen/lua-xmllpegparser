@@ -5,9 +5,9 @@ source = {
   tag = "v2.1.1"
 }
 description = {
-  summary = "An Fast XML Parser written with lpeg.",
+  summary = "Fast XML Parser written with LPeg.",
   detailed = [[
-    Enables parsing an XML file and converting it to a Lua table,
+    Enables parsing a XML file and converting it to a Lua table,
     which can be handled directly by your application.
   ]],
   homepage = "https://github.com/jonathanpoelen/lua-xmllpegparser",
