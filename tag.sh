@@ -21,7 +21,7 @@ sed -i "s/${oldfile//./\\.}/$newfile/" README.md
 mv "$oldfile" "$newfile"
 
 git add "$oldfile" "$newfile" README.md
-git commit -vm "version $new_std_vers"
+git commit -vm "update version to $new_std_vers"
 git tag "v$new_std_vers"
 git push --tags
 git push
