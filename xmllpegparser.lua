@@ -273,11 +273,13 @@ treeParserWithoutPosWithReplacedEntities = lazyParser(function() return mkVisito
 local _defaultParser, _defaultParserWithReplacedEntities = treeParser, treeParserWithReplacedEntities
 
 function enableWithoutPosParser(b)
+  local r1, r2 = _defaultParser, _defaultParserWithReplacedEntities
   if b == nil or b == true then
     _defaultParser, _defaultParserWithReplacedEntities = treeParserWithoutPos, treeParserWithoutPosWithReplacedEntities
   else
     _defaultParser, _defaultParserWithReplacedEntities = treeParser, treeParserWithReplacedEntities
   end
+  return r1, r2
 end
 
 function setDefaultParsers(p, pWithReplacedEntities)
@@ -288,7 +290,7 @@ function setDefaultParsers(p, pWithReplacedEntities)
   elseif pWithReplacedEntities == false then
     _defaultParserWithReplacedEntities = treeParserWithReplacedEntities
   else
-    _defaultParserWithReplacedEntities = pWithReplacedEntities or treeParserWithReplacedEntities or _defaultParser
+    _defaultParserWithReplacedEntities = pWithReplacedEntities or treeParserWithReplacedEntities
   end
   return r1, r2
 end

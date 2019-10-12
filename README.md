@@ -50,8 +50,8 @@ If `subEntities` is `true`, the entities are replaced and a `tentity` member is 
 - `xmllpegparser.treeParserWithReplacedEntities`: the default parser used by `xmllpegparser.parse(s, true)`
 - `xmllpegparser.treeParserWithoutPos`: parser without `pos` parameter
 - `xmllpegparser.treeParserWithoutPosWithReplacedEntities`: parser without `pos` parameter
-- `xmllpegparser.enableWithoutPosParser([bool])`: enable default parser with `treeParserWithoutPos*` version. `enableParserWithoutPos(false)` is same to `setDefaultParsers()`
-- `xmllpegparser.setDefaultParsers(parser, parserWithReplacedEntities|bool|nil)`: Return previous parsers. If `parserWithReplacedEntities == true`, then `parserWithReplacedEntities = p`. `nil` value restore the default parser.
+- `xmllpegparser.enableWithoutPosParser([bool])`: enable default parser with `treeParserWithoutPos*` version. `enableParserWithoutPos(false)` is same to `setDefaultParsers()`. Returns the previous parsers.
+- `xmllpegparser.setDefaultParsers(parser, parserWithReplacedEntities|bool|nil)`: Returns the previous parsers. If `parserWithReplacedEntities == true`, then `parserWithReplacedEntities = p`. `nil` or `false` value restore the default parser.
 
 ### Document structure (default parser)
 

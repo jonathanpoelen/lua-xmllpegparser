@@ -45,9 +45,9 @@ end
 function mkEq(eq)
   return function(s, ...)
     eq(s, ...)
-    xmllpegparser.enableWithoutPosParser()
+    local p1, p2 = xmllpegparser.enableWithoutPosParser()
     eq(s:gsub(',pos:%d+', ''), ...)
-    xmllpegparser.enableWithoutPosParser(false)
+    xmllpegparser.setDefaultParsers(p1, p2)
   end
 end
 
