@@ -1,8 +1,8 @@
 package = "xmllpegparser"
-version = "2.1-1"
+version = "2.1-2"
 source = {
   url = "git://github.com/jonathanpoelen/lua-xmllpegparser",
-  tag = "v2.1.1"
+  tag = "v2.1.2"
 }
 description = {
   summary = "Fast XML Parser written with LPeg.",
