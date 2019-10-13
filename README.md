@@ -7,8 +7,9 @@
 2. [Test](#test)
 3. [xmllpegparser API](#xmllpegparser-api)
     1. [Document structure (default parser)](#document-structure-default-parser)
-    2. [Visitor structure](#visitor-structure)
-    3. [Default parser limitations](#default-parser-limitations)
+    2. [Parser structure](#parser-structure)
+    3. [Visitor structure](#visitor-structure)
+    4. [Default parser limitations](#default-parser-limitations)
 5. [Licence](#licence)
 <!-- /summary -->
 
@@ -36,22 +37,46 @@ Run `./example.lua`.
 
 ## xmllpegparser API
 
-- `xmllpegparser.parse(xmlstring[, visitorOrsubEntities[, visitorInitArgs...]])`: Return a tuple `document table, (string error or nil)` (see `visitor.finish`).
+- `xmllpegparser.parse(xmlstring[, visitorOrsubEntities[, visitorInitArgs...]])`:\
+Returns a tuple `document table, (string error or nil)` (see `visitor.finish`).\
 If `subEntities` is `true`, the entities are replaced and a `tentity` member is added to the document `table`.
-- `xmllpegparser.parseFile(filename[, visitorOrsubEntities[, visitorInitArgs...]])`: Return a tuple `document table, error file or error document`.
-- `xmllpegparser.defaultEntitiyTable()`: Return the default entity table (` { quot='"', ... }`).
-- `xmllpegparser.createEntityTable(docEntities[, resultEntities])`: Create an entity table from the document entity table. Return `resultEntities`.
-- `xmllpegparser.mkReplaceEntities(tableTable_or_func)`: Return a lpeg replace entities context: `str = ctx:match(str)`.
-- `xmllpegparser.replaceEntities(s, entityTable_or_func)`: Return a `string`.
-- `xmllpegparser.parser(visitor)`: return a parser (`{parse=function(xmlstring, visitorInitArgs...), parseFile=function(filename, visitorInitArgs...), __call=function(xmlstring, visitorInitArgs...)}`)
-- `xmllpegparser.mkVisitor(evalEntities:bool, defaultEntities:table|function|nil, withoutPosition)`: `if not defaultEntities and evalEntities then defaultEntities = defaultEntityTable`. If `withoutPosition`, then `pos` parameter does not exist for the visitor functions except for `finish`.
-- `xmllpegparser.lazyParser(visitorCreator)`
-- `xmllpegparser.treeParser`: the default parser used by `xmllpegparser.parse(s, false)`
-- `xmllpegparser.treeParserWithReplacedEntities`: the default parser used by `xmllpegparser.parse(s, true)`
-- `xmllpegparser.treeParserWithoutPos`: parser without `pos` parameter
-- `xmllpegparser.treeParserWithoutPosWithReplacedEntities`: parser without `pos` parameter
-- `xmllpegparser.enableWithoutPosParser([bool])`: enable default parser with `treeParserWithoutPos*` version. `enableParserWithoutPos(false)` is same to `setDefaultParsers()`. Returns the previous parsers.
-- `xmllpegparser.setDefaultParsers(parser, parserWithReplacedEntities|bool|nil)`: Returns the previous parsers. If `parserWithReplacedEntities == true`, then `parserWithReplacedEntities = p`. `nil` or `false` value restore the default parser.
+- `xmllpegparser.parseFile(filename[, visitorOrsubEntities[, visitorInitArgs...]])`:\
+Returns a tuple `document table, error file or error document`.
+- `xmllpegparser.defaultEntitiyTable()`:\
+Returns the default entity table (` { quot='"', ... }`).
+- `xmllpegparser.createEntityTable(docEntities[, resultEntities])`:\
+Creates an entity table from the document entity table. Return `resultEntities`.
+- `xmllpegparser.mkReplaceEntities(entityTable_or_func)`:\
+Returns a lpeg replace entities context: `str = ctx:match(str)`.
+- `xmllpegparser.replaceEntities(s, entityTable_or_func)`:\
+Returns a `string`.
+- `xmllpegparser.parser(visitor[, safeVisitor:bool])`:\
+Returns a parser.
+If all visitor functions return `nil` (excepted `accuattr`, `init` and `finish`), then `safeVisitor` may be `true` and the parser will optimize the visitor's calls.
+- `xmllpegparser.lazyParser(visitorCreator)`:\
+Returns a parser.\
+`xmllpegparser.parser(visitorCreator())` is used on the first call of `myparser.parse(...)`.
+- `xmllpegparser.mkVisitor(evalEntities:bool, defaultEntities:table|function|nil, withoutPosition)`:\
+If `not defaultEntities` and `evalEntities` then `defaultEntities = defaultEntityTable`.\
+If `withoutPosition`, then `pos` parameter does not exist for the visitor functions except for `finish`.
+- `xmllpegparser.treeParser`:\
+The default parser used by `xmllpegparser.parse(s, false)`
+- `xmllpegparser.treeParserWithReplacedEntities`:\
+The default parser used by `xmllpegparser.parse(s, true)`
+- `xmllpegparser.treeParserWithoutPos`:\
+Parser without `pos` parameter
+- `xmllpegparser.treeParserWithoutPosWithReplacedEntities`:\
+Parser without `pos` parameter
+- `xmllpegparser.enableWithoutPosParser([bool])`:\
+Enable default parser with `treeParserWithoutPos*` version.\
+`enableParserWithoutPos(false)` is same to `setDefaultParsers()`.\
+Returns the previous parsers.
+- `xmllpegparser.setDefaultParsers(parser, parserWithReplacedEntities|bool|nil)`:\
+If `parserWithReplacedEntities == true`, then `parserWithReplacedEntities = p`.\
+`nil` or `false` value restore the default parser.\
+Returns the previous parsers.
+
+
 
 ### Document structure (default parser)
 
@@ -69,6 +94,16 @@ document = {
   lastpos = numeric, -- last known position of parse()
   entities = { { pos=integer, name=string, value=string }, ... },
   tentities = { name=value, ... } -- only if subEntities = true
+}
+```
+
+### Parser structure
+
+```lua
+{
+  parse = function(xmlstring, visitorInitArgs...) ... end,
+  parseFile = function(filename, visitorInitArgs...) ... end,
+  __call = function(xmlstring, visitorInitArgs...) ... end,
 }
 ```
 

@@ -10,6 +10,7 @@ local Cf = lpeg.Cf
 local Cs = lpeg.Cs
 local P = lpeg.P
 local I = lpeg.Cp()
+local Ce = lpeg.Cc()
 
 local setmetatable, string, pairs, tostring, io, type, rawset = setmetatable, string, pairs, tostring, io, type, rawset
 -- local print = print
@@ -37,47 +38,61 @@ local mt = {__call = function(_, ...) return _.parse(...) end}
 local addI = function(x) return I * x end
 local ident = function(x) return x end
 
-local _parser = function(v)
+-- force a no captured value with a query function
+local unsafeCall = function(patt, func)
+  return patt / function(...) func(...) end
+end
+
+local safeCall = function(patt, func)
+  return patt / func
+end
+
+local _parser = function(v, safeVisitor)
+  local call = safeVisitor == true and safeCall or unsafeCall
   local mark = (v.withpos and addI or ident)
 
-  local Comment = v.comment and CComment / v.comment or Comment
+  local Comment = v.comment and call(CComment, v.comment) or Comment
   local Comments = Space0 * (Comment * Space0)^0
 
-  local Attrs = (v.accuattr or (v.tag and v.accuattr ~= false)) and
-    Cf(Ct'' * (Space1 * CAttr)^0, v.accuattr or rawset) * Space0 or
+  local hasAttr = v.accuattr or (v.accuattr ~= false and (v.tag or v.proc))
+  local CAttrs = hasAttr and 
+    Cf(Ct'' * (Space1 * CAttr)^0, v.accuattr or rawset) * Space0
+  local Attrs =
               (Space1 *  Attr)^0                        * Space0
+  local ProcAttrs = (v.accuattr or (hasAttr and v.proc)) and CAttrs or Attrs
+  local TagAttrs  = (v.accuattr or (hasAttr and v.tag )) and CAttrs or Attrs
 
   local Preproc = v.proc and
-    (Comments * mark('<?') * CName * Attrs * '?>' / v.proc)^0 or
-    (Comments *      '<?'  *  Name * Attrs * '?>'         )^0
+    (Comments * call(mark('<?') * CName * ProcAttrs * '?>', v.proc))^0 or
+    (Comments *           '<?'  *  Name * ProcAttrs * '?>'         )^0
 
   local Entities = v.entity and
-    (Comments * Cg(mark(CEntity)) / v.entity)^0 or
-    (Comments *          Entity             )^0
+    (Comments * call(Cg(mark(CEntity)) ,v.entity))^0 or
+    (Comments *               Entity             )^0
 
   local Doctype = v.doctype and
-    Comments * ('<!DOCTYPE' * Space1 * mark(CName) * Space1 * C(R'AZ'^1) * Space1 * CString * Space0 * (P'>' + '[' * Entities * Comments * ']>') / v.doctype)^-1 or
-    Comments * ('<!DOCTYPE' * Space1 *       Name  * Space1 *  (R'AZ'^1) * Space1 *  String * Space0 * (P'>' + '[' * Entities * Comments * ']>')            )^-1
+    Comments * ('<!DOCTYPE' * Space1 * call(mark(CName) * Space1 * C(R'AZ'^1) * Space1 * CString * Space0 * (P'>' + '[' * Entities * Comments * ']>'), v.doctype))^-1 or
+    Comments * ('<!DOCTYPE' * Space1 *            Name  * Space1 *  (R'AZ'^1) * Space1 *  String * Space0 * (P'>' + '[' * Entities * Comments * ']>')            )^-1
 
   local Tag = v.tag and
-    '<' * mark(CName) * Attrs / v.tag or
-    '<' *       Name  * Attrs
+    '<' * call(mark(CName) * TagAttrs, v.tag) or
+    '<' *            Name  * TagAttrs
 
   local Open = v.open and
-    P'>' / v.open + '/>' or
-    P'>'          + '/>'
+    P'>' * call(Ce, v.open) + '/>' or
+    P'>'                    + '/>'
 
   local Close = v.close and
-    '</' * mark(CName) / v.close * Space0 * '>' or
-    '</' *       Name            * Space0 * '>'
+    '</' * call(mark(CName), v.close) * Space0 * '>' or
+    '</' *            Name            * Space0 * '>'
 
   local Text = v.text and
-    mark(C((Space0 * (1-S" \n\t<")^1)^1)) / v.text or
-          ((Space0 * (1-S" \n\t<")^1)^1)
+    call(mark(C((Space0 * (1-S" \n\t<")^1)^1)), v.text) or
+               ((Space0 * (1-S" \n\t<")^1)^1)
 
   local Cdata = (v.cdata or v.text) and
-    '<![CDATA[' * mark(C((1 - P']]>')^0) * ']]>') / (v.cdata or v.text) or
-    '<![CDATA[' *       ((1 - P']]>')^0) * ']]>'
+    '<![CDATA[' * call(mark(C((1 - P']]>')^0) * ']]>'), v.cdata or v.text) or
+    '<![CDATA[' *            ((1 - P']]>')^0) * ']]>'
 
   local G = Preproc * Doctype * (Space0 * (Tag * Open + Close + Comment + Cdata + Text))^0 * Space0 * I
 
@@ -110,8 +125,8 @@ local mkparser = function(pf)
   return p
 end
 
-function parser(v)
-  return mkparser(_parser(v))
+function parser(v, safeVisitor)
+  return mkparser(_parser(v, safeVisitor))
 end
 
 function defaultEntityTable()
@@ -200,7 +215,7 @@ function mkVisitor(evalEntities, defaultEntities, withoutPosition)
     text=text,
 
     init=function()
-      elem = {children={}, bad={children={}}};
+      elem = {children={}, bad={children={}}}
       doc = {preprocessor={}, entities={}, document=elem}
       elem.parent = bad
       elem.bad.parent = elem.bad
@@ -256,13 +271,16 @@ function mkVisitor(evalEntities, defaultEntities, withoutPosition)
     close=function()
       elem = elem.parent
     end,
-  }
+  }, true -- safeVisitor
 end
 
 function lazyParser(visitorCreator)
   local p
-  p = mkparser(function(...) p.parse = _parser(visitorCreator()); return p.parse(...) end)
-  return p
+  p = mkparser(function(...)
+    p.parse = _parser(visitorCreator())
+    return p.parse(...)
+  end)
+  return p, true
 end
 
 treeParser = lazyParser(function() return mkVisitor() end)
