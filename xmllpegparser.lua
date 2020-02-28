@@ -283,7 +283,7 @@ function lazyParser(visitorCreator)
   return p, true
 end
 
-treeParser = lazyParser(function() return mkVisitor() end)
+treeParser = lazyParser(mkVisitor)
 treeParserWithReplacedEntities = lazyParser(function() return mkVisitor(true) end)
 treeParserWithoutPos = lazyParser(function() return mkVisitor(nil,nil,true) end)
 treeParserWithoutPosWithReplacedEntities = lazyParser(function() return mkVisitor(true,nil,true) end)
