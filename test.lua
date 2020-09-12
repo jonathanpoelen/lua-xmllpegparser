@@ -58,7 +58,7 @@ end
 local eq, feq = mkEq(_eq), mkEq(_feq)
 
 
-require('xmllpegparser')
+xmllpegparser = require'xmllpegparser'
 
 eq('{children:{1:{attrs:{},children:{},parent:nil,pos:1,tag:a,},2:{attrs:{},children:{1:{parent:b,pos:11,text:ad,},},parent:nil,pos:8,tag:b,},3:{attrs:{},children:{},parent:nil,pos:17,tag:c,},4:{attrs:{},children:{1:{attrs:{},children:{1:{parent:e,pos:27,text:ds,},},parent:d,pos:24,tag:e,},},parent:nil,pos:21,tag:d,},5:{attrs:{},children:{1:{parent:f,pos:40,text:a,},2:{attrs:{},children:{},parent:f,pos:41,tag:g,},3:{parent:f,pos:45,text:b,},},parent:nil,pos:37,tag:f,},},entities:{},lastpos:50,preprocessor:{},}',
    '<a></a><b>ad</b><c/><d><e>ds</e></d><f>a<g/>b</f>')

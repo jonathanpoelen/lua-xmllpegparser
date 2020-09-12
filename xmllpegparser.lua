@@ -15,8 +15,6 @@ local Ce = lpeg.Cc()
 local setmetatable, string, pairs, tostring, io, type, rawset = setmetatable, string, pairs, tostring, io, type, rawset
 -- local print = print
 
-module "xmllpegparser"
-
 local Space = S' \n\t'
 local Space0 = Space^0
 local Space1 = Space^1
@@ -125,25 +123,25 @@ local mkparser = function(pf)
   return p
 end
 
-function parser(v, safeVisitor)
+local function parser(v, safeVisitor)
   return mkparser(_parser(v, safeVisitor))
 end
 
-function defaultEntityTable()
+local function defaultEntityTable()
   return { quot='"', apos='\'', lt='<', gt='>', amp='&', tab='\t', nbsp=' ', }
 end
 
 local DeclEntity = P'&' * C((1-P';')^1) * P';'
 
-function mkReplaceEntities(repl)
+local function mkReplaceEntities(repl)
   return Cs((DeclEntity / repl + 1)^0)
 end
 
-function replaceEntities(s, entities)
+local function replaceEntities(s, entities)
   return s:gsub('&([^;]+);', entities)
 end
 
-function createEntityTable(docEntities, resultEntities)
+local function createEntityTable(docEntities, resultEntities)
   entities = resultEntities or defaultEntityTable()
   for _,e in pairs(docEntities) do
     e.value = replaceEntities(e.value, entities)
@@ -153,7 +151,7 @@ function createEntityTable(docEntities, resultEntities)
 end
 
 
-function mkVisitor(evalEntities, defaultEntities, withoutPosition)
+local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
   local elem, doc, SubEntity, accuattr, doctype, cdata, text
   local mkDefaultEntities = defaultEntities and (
     type(defaultEntities) == 'table' and function()
@@ -274,7 +272,7 @@ function mkVisitor(evalEntities, defaultEntities, withoutPosition)
   }, true -- safeVisitor
 end
 
-function lazyParser(visitorCreator)
+local function lazyParser(visitorCreator)
   local p
   p = mkparser(function(...)
     p.parse = _parser(visitorCreator())
@@ -283,14 +281,14 @@ function lazyParser(visitorCreator)
   return p, true
 end
 
-treeParser = lazyParser(mkVisitor)
-treeParserWithReplacedEntities = lazyParser(function() return mkVisitor(true) end)
-treeParserWithoutPos = lazyParser(function() return mkVisitor(nil,nil,true) end)
-treeParserWithoutPosWithReplacedEntities = lazyParser(function() return mkVisitor(true,nil,true) end)
+local treeParser = lazyParser(function() return mkVisitor() end)
+local treeParserWithReplacedEntities = lazyParser(function() return mkVisitor(true) end)
+local treeParserWithoutPos = lazyParser(function() return mkVisitor(nil,nil,true) end)
+local treeParserWithoutPosWithReplacedEntities = lazyParser(function() return mkVisitor(true,nil,true) end)
 
 local _defaultParser, _defaultParserWithReplacedEntities = treeParser, treeParserWithReplacedEntities
 
-function enableWithoutPosParser(b)
+local function enableWithoutPosParser(b)
   local r1, r2 = _defaultParser, _defaultParserWithReplacedEntities
   if b == nil or b == true then
     _defaultParser, _defaultParserWithReplacedEntities = treeParserWithoutPos, treeParserWithoutPosWithReplacedEntities
@@ -300,7 +298,7 @@ function enableWithoutPosParser(b)
   return r1, r2
 end
 
-function setDefaultParsers(p, pWithReplacedEntities)
+local function setDefaultParsers(p, pWithReplacedEntities)
   local r1, r2 = _defaultParser, _defaultParserWithReplacedEntities
   _defaultParser = p or treeParser
   if pWithReplacedEntities == true then
@@ -319,10 +317,32 @@ local getParser = function(visitorOrEvalEntities)
          parser(visitorOrEvalEntities)
 end
 
-function parse(s, visitorOrEvalEntities, ...)
+local function parse(s, visitorOrEvalEntities, ...)
   return getParser(visitorOrEvalEntities).parse(s, ...)
 end
 
-function parseFile(filename, visitorOrEvalEntities, ...)
+local function parseFile(filename, visitorOrEvalEntities, ...)
   return getParser(visitorOrEvalEntities).parseFile(filename, ...)
 end
+
+local xmllpegparser = {
+  defaultEntityTable = defaultEntityTable,
+  mkReplaceEntities = mkReplaceEntities,
+  replaceEntities = replaceEntities,
+  createEntityTable = createEntityTable,
+  mkVisitor = mkVisitor,
+  lazyParser = lazyParser,
+  treeParser = treeParser,
+  treeParserWithReplacedEntities = treeParserWithReplacedEntities,
+  treeParserWithoutPos = treeParserWithoutPos,
+  treeParserWithoutPosWithReplacedEntities = treeParserWithoutPosWithReplacedEntities,
+  enableWithoutPosParser = enableWithoutPosParser,
+  setDefaultParsers = setDefaultParsers,
+  parser = parser,
+  parse = parse,
+  parseFile = parseFile,
+}
+
+if version == "Lua 5.1" then _G.xmllpegparser = xmllpegparser end
+
+return xmllpegparser
