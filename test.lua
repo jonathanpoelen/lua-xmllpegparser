@@ -120,6 +120,41 @@ peq('{attrs:{},children:{1:{parent:x,pos:4,text:xxx/&y;,},},parent:nil,pos:1,tag
 peq('{attrs:{},children:{1:{parent:x,pos:51,text:xxx/yyy,},},parent:nil,pos:48,tag:x,}',
     '<!DOCTYPE l SYSTEM "l.dtd" [<!ENTITY y "yyy">]><x>&x;/&y;</x>')
 
+peq('{attrs:{},children:{},parent:nil,pos:20,tag:a,}',
+    '<!DOCTYPE language><a></a>')
+
+peq('{attrs:{},children:{},parent:nil,pos:22,tag:a,}',
+    '<!DOCTYPE language[]><a></a>')
+
+peq('{attrs:{},children:{},parent:nil,pos:39,tag:a,}',
+    '<!DOCTYPE language[<!ENTITY y "yyy">]><a></a>')
+
+do
+  local d
+  local doctypeVisitor = xmllpegparser.parser({
+    init=function()
+      d = {}
+    end,
+    finish=function()
+      return d
+    end,
+    doctype=function(name, cat, path)
+      d = {name=name, cat=cat, path=path}
+    end
+  })
+
+  function doctypeEq(s, sxml)
+    _eq(doctypeVisitor, s, sxml)
+  end
+end
+
+doctypeEq('{name:language,}', '<!DOCTYPE language>')
+doctypeEq('{name:language,}', '<!DOCTYPE language[]>')
+doctypeEq('{name:language,}', '<!DOCTYPE language[] >')
+doctypeEq('{cat:SYSTEM,name:language,path:language.dtd,}',
+          '<!DOCTYPE language SYSTEM "language.dtd">')
+doctypeEq('{cat:SYSTEM,name:language,path:language.dtd,}',
+          '<!DOCTYPE language SYSTEM "language.dtd"[]>')
 
 if 0 == r then
   print('No error')

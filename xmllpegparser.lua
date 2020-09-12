@@ -53,7 +53,7 @@ local _parser = function(v, safeVisitor)
   local Comments = Space0 * (Comment * Space0)^0
 
   local hasAttr = v.accuattr or (v.accuattr ~= false and (v.tag or v.proc))
-  local CAttrs = hasAttr and 
+  local CAttrs = hasAttr and
     Cf(Ct'' * (Space1 * CAttr)^0, v.accuattr or rawset) * Space0
   local Attrs =
               (Space1 *  Attr)^0                        * Space0
@@ -69,8 +69,8 @@ local _parser = function(v, safeVisitor)
     (Comments *               Entity             )^0
 
   local Doctype = v.doctype and
-    Comments * ('<!DOCTYPE' * Space1 * call(mark(CName) * Space1 * C(R'AZ'^1) * Space1 * CString * Space0 * (P'>' + '[' * Entities * Comments * ']>'), v.doctype))^-1 or
-    Comments * ('<!DOCTYPE' * Space1 *            Name  * Space1 *  (R'AZ'^1) * Space1 *  String * Space0 * (P'>' + '[' * Entities * Comments * ']>')            )^-1
+    Comments * ('<!DOCTYPE' * Space1 * call(mark(CName) * (Space1 * C(R'AZ'^1) * Space1 * CString)^-1 * Space0 * (P'>' + '[' * Entities * Comments * ']' * Space0 * '>'), v.doctype))^-1 or
+    Comments * ('<!DOCTYPE' * Space1 *            Name  * (Space1 *  (R'AZ'^1) * Space1 *  String)^-1 * Space0 * (P'>' + '[' * Entities * Comments * ']' * Space0 * '>')            )^-1
 
   local Tag = v.tag and
     '<' * call(mark(CName) * TagAttrs, v.tag) or

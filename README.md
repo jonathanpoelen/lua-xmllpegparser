@@ -114,8 +114,8 @@ Each member is optionnal.
 ```lua
 {
   withPos = bool -- indicates if pos parameter exists in function parameter (except `finish`)
-  init = function(...), -- called before parsing, returns the position of the beginning of macth or nil
-  finish = function(err, pos, xmlstring), -- called after parsing
+  init = function(...), -- called before parsing, returns the position of the beginning of match or nil
+  finish = function(err, pos, xmlstring), -- called after parsing, returns (doc, err) or nil
   proc = function(pos, name, attrs), -- <?...?>
   entity = function(pos, name, value),
   doctype = function(pos, name, cat, path), -- called after all addEntity
