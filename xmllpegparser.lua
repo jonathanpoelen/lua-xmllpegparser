@@ -116,7 +116,11 @@ local mkparser = function(pf)
     parse     = pf,
     parseFile = function(filename, ...)
       local f, err = io.open(filename)
-      if f then return p.parse(f:read'*a', ...) end
+      if f then
+        local content = f:read'*a'
+        f:close()
+        return p.parse(content, ...), nil
+      end
       return f, err
     end,
   }, mt)
