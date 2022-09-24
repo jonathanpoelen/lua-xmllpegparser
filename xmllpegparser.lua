@@ -1,4 +1,4 @@
--- from https://github.com/jonathanpoelen/xmlparser
+-- from https://github.com/jonathanpoelen/lua-xmllpegparser
 
 local lpeg = require'lpeg'
 local S = lpeg.S
@@ -11,9 +11,6 @@ local Cs = lpeg.Cs
 local P = lpeg.P
 local I = lpeg.Cp()
 local Cc = lpeg.Cc()
-
-local setmetatable, string, pairs, tostring, io, type, rawset = setmetatable, string, pairs, tostring, io, type, rawset
--- local print = print
 
 local Space = S' \n\t'
 local Space0 = Space^0
@@ -436,7 +433,7 @@ local function parseFile(filename, visitorOrEvalEntities, ...)
   return getParser(visitorOrEvalEntities).parseFile(filename, ...)
 end
 
-local xmllpegparser = {
+return {
   defaultEntityTable = defaultEntityTable,
   mkReplaceEntities = mkReplaceEntities,
   replaceEntities = replaceEntities,
@@ -453,7 +450,3 @@ local xmllpegparser = {
   parse = parse,
   parseFile = parseFile,
 }
-
-if version == "Lua 5.1" then _G.xmllpegparser = xmllpegparser end
-
-return xmllpegparser
