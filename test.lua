@@ -26,7 +26,7 @@ r = 0
 function check(tdoc, err, s, input, ierr)
   local doc = str(tdoc)
   if err or s ~= doc then
-    (#arg ~= 0 and error or print)('[FAILURE]\n  ' .. s .. '\n  ==\n  ' .. doc .. '\n with' .. input)
+    (#arg ~= 0 and error or print)('[FAILURE]\n  ' .. s .. '\n  ==\n  ' .. doc .. '\n with ' .. input)
     if err then print('  ' .. err .. '/' .. ierr) end
     r = r + 1
   end

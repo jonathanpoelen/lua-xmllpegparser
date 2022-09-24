@@ -47,7 +47,7 @@ Returns the default entity table (` { quot='"', ... }`).
 - `xmllpegparser.createEntityTable(docEntities[, resultEntities])`:\
 Creates an entity table from the document entity table. Return `resultEntities`.
 - `xmllpegparser.mkReplaceEntities(entityTable_or_func)`:\
-Returns a lpeg replace entities context: `str = ctx:match(str)`.
+Returns an LPeg expression that can replace entities
 - `xmllpegparser.replaceEntities(s, entityTable_or_func)`:\
 Returns a `string`.
 - `xmllpegparser.parser(visitor[, safeVisitor:bool])`:\
@@ -57,12 +57,12 @@ If all visitor functions return `nil` (excepted `accuattr`, `init` and `finish`)
 Returns a parser.\
 `xmllpegparser.parser(visitorCreator())` is used on the first call of `myparser.parse(...)`.
 - `xmllpegparser.mkVisitor(evalEntities:bool, defaultEntities:table|function|nil, withoutPosition)`:\
-If `not defaultEntities` and `evalEntities` then `defaultEntities = defaultEntityTable`.\
+If `not defaultEntities` and `evalEntities` then `defaultEntities = defaultEntityTable()`.\
 If `withoutPosition`, then `pos` parameter does not exist for the visitor functions except for `finish`.
 - `xmllpegparser.treeParser`:\
-The default parser used by `xmllpegparser.parse(s, false)`
+The default parser used by `xmllpegparser.parse(str, false)`
 - `xmllpegparser.treeParserWithReplacedEntities`:\
-The default parser used by `xmllpegparser.parse(s, true)`
+The default parser used by `xmllpegparser.parse(str, true)`
 - `xmllpegparser.treeParserWithoutPos`:\
 Parser without `pos` parameter
 - `xmllpegparser.treeParserWithoutPosWithReplacedEntities`:\
@@ -116,15 +116,15 @@ Each member is optionnal.
   withPos = bool -- indicates if pos parameter exists in function parameter (except `finish`)
   init = function(...), -- called before parsing, returns the position of the beginning of match or nil
   finish = function(err, pos, xmlstring), -- called after parsing, returns (doc, err) or nil
-  proc = function(pos, name, attrs), -- <?...?>
+  proc = function(pos, name, attrs), -- for `<?...?>`
   entity = function(pos, name, value),
-  doctype = function(pos, name, cat, path), -- called after all addEntity
+  doctype = function(pos, name, cat, path), -- called after all entity()
   accuattr = function(table, name, value), -- `table` is an accumulator that will be transmitted to tag.attrs. Set to `false` for disable this function.
                                            -- If `nil` and `tag` is `not nil`, a default accumalator is used.
                                            -- If `false`, the accumulator is disabled.
                                            -- (`tag(pos, name, accuattr(accuattr({}, attr1, value1), attr2, value2)`)
   tag = function(pos, name, attrs), -- for a new tag (`<a>` or `<a/>`)
-  open = function(), -- only for a open node (`<a>`), called after `tag`.
+  open = function(), -- only for a open node (`<a>` not `<a/>`), called after `tag`.
   close = function(name),
   text = function(pos, text),
   cdata = function(pos, text), -- or `text` if nil 

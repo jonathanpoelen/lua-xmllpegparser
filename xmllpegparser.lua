@@ -10,7 +10,7 @@ local Cf = lpeg.Cf
 local Cs = lpeg.Cs
 local P = lpeg.P
 local I = lpeg.Cp()
-local Ce = lpeg.Cc()
+local Cc = lpeg.Cc()
 
 local setmetatable, string, pairs, tostring, io, type, rawset = setmetatable, string, pairs, tostring, io, type, rawset
 -- local print = print
@@ -65,7 +65,7 @@ local _parser = function(v, safeVisitor)
     (Comments *           '<?'  *  Name * ProcAttrs * '?>'         )^0
 
   local Entities = v.entity and
-    (Comments * call(Cg(mark(CEntity)) ,v.entity))^0 or
+    (Comments * call(Cg(mark(CEntity)), v.entity))^0 or
     (Comments *               Entity             )^0
 
   local Doctype = v.doctype and
@@ -77,7 +77,7 @@ local _parser = function(v, safeVisitor)
     '<' *            Name  * TagAttrs
 
   local Open = v.open and
-    P'>' * call(Ce, v.open) + '/>' or
+    P'>' * call(Cc, v.open) + '/>' or
     P'>'                    + '/>'
 
   local Close = v.close and
@@ -127,24 +127,77 @@ local mkparser = function(pf)
   return p
 end
 
-local function parser(v, safeVisitor)
-  return mkparser(_parser(v, safeVisitor))
+--! Create a parser.
+--! @param[in] visitor table : see mkVisitor()
+--! @param[in] safeVisitor boolean : when true, optimizes the parser.
+--!  Should only be used if all visitor functions (except init and finish) return nil
+--! @return Parser
+--! @code
+--! @code
+--!   -- all values are optional
+--!   visitor = {
+--!     withpos = boolean, -- indicates if pos parameter exists in function parameter (except `finish`)
+--!     init = function(...), -- called before parsing, returns the position of the beginning of match or nil
+--!     finish = function(err, pos, xmlstring), -- called after parsing, returns (doc, err) or nil
+--!     proc = function(pos, name, attrs) or function(name, attrs), -- for `<?...?>`
+--!     entity = function(entityName, entityValue),
+--!     doctype = function(pos, name, cat, path) or function(name, cat, path), -- called after all entity()
+--!     accuattr = function(table, entityName, entityValue),
+--!         -- `table` is an accumulator that will be transmitted to tag.attrs.
+--!         -- Set to `false` for disable this function.
+--!         -- If `nil` and `tag` is `not nil`, a default accumalator is used.
+--!         -- If `false`, the accumulator is disabled.
+--!         -- (`tag(pos, name, accuattr(accuattr({}, attr1, value1), attr2, value2)`)
+--!     tag = function(name, attrs), -- for a new tag (`<a>` or `<a/>`)
+--!     open = function(), -- only for a open node (`<a>` not `<a/>`), called after `tag`.
+--!     close = function(name),
+--!     text = function(text),
+--!     cdata = function(text), -- or `text` if nil
+--!     comment = function(str),
+--!   }
+--!
+--!   parser = {
+--!     __call = --[[call parse]]
+--!     parse = function(str, --[[visitorInitArgs]]...),
+--!     parseFile = function(filename, --[[visitorInitArgs]]...),
+--!   }
+--! @endcode
+local function parser(visitor, safeVisitor)
+  return mkparser(_parser(visitor, safeVisitor))
 end
 
+--! Returns the default entity table.
+--! @return table
 local function defaultEntityTable()
   return { quot='"', apos='\'', lt='<', gt='>', amp='&', tab='\t', nbsp=' ', }
 end
 
 local DeclEntity = P'&' * C((1-P';')^1) * P';'
 
+--! Returns an LPeg expression that can replace entities.
+--! @code
+--!   p = mkReplaceEntities(defaultEntityTable())
+--!   str = '<b>a &amp; b</b>'
+--!   str = p:match(str)
+--!   assert(str == '<b>a & b</b>')
+--! @endcode
 local function mkReplaceEntities(repl)
   return Cs((DeclEntity / repl + 1)^0)
 end
 
+--! @param[in] s string
+--! @param[in] entities table : with entity name as key and value as replacement
+--! @return string
 local function replaceEntities(s, entities)
   return s:gsub('&([^;]+);', entities)
 end
 
+--! Add entities to resultEntities then return it.
+--! Create new table when resultEntities is nil.
+--! Create an entity table from the document entity table.
+--! @param[in] docEntities table
+--! @param[in,out] resultEntities table|nil
+--! @return table
 local function createEntityTable(docEntities, resultEntities)
   entities = resultEntities or defaultEntityTable()
   for _,e in pairs(docEntities) do
@@ -154,7 +207,13 @@ local function createEntityTable(docEntities, resultEntities)
   return entities
 end
 
-
+--! Create a visitor.
+--! If `not defaultEntities` and `evalEntities` then `defaultEntities = defaultEntityTable()`.\
+--! If `withoutPosition`, then `pos` parameter does not exist for the visitor functions except for `finish`.
+--! @param[in] evalEntities boolean
+--! @param[in] defaultEntities boolean|table|function
+--! @param[in] withoutPosition boolean
+--! @return visitor table and true for safeVisitor (see parser())
 local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
   local elem, doc, SubEntity, accuattr, doctype, cdata, text
   local mkDefaultEntities = defaultEntities and (
@@ -276,6 +335,9 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
   }, true -- safeVisitor
 end
 
+--! Create a parser whose visitor is built on the first call.
+--! @param[in] visitorCreator function
+--! @return Parser
 local function lazyParser(visitorCreator)
   local p
   p = mkparser(function(...)
@@ -285,13 +347,39 @@ local function lazyParser(visitorCreator)
   return p, true
 end
 
+--! @{
+--! Document structure for default parser:
+--! @code
+--!   -- pos member = index of string. Only when visitor.withPos == true
+--!   document = {
+--!     children = {
+--!       { pos=integer, parent=table or nil, text=string[, cdata=true] } or
+--!       { pos=integer, parent=table or nil, tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
+--!       ...
+--!     },
+--!     bad = { children={ ... } } -- if the number of closed nodes is greater than the open nodes. parent always refers to bad
+--!     preprocessor = { { pos=integer, tag=string, attrs={ { name=string, value=string }, ... } },
+--!     error = string, -- if error
+--!     lastpos = numeric, -- last known position of parse()
+--!     entities = { { pos=integer, name=string, value=string }, ... },
+--!     tentities = { name=value, ... } -- only if subEntities = true
+--!   }
+--! @endcode
+
+-- The default parser used by parse(str, false)
 local treeParser = lazyParser(function() return mkVisitor() end)
+-- The default parser used by parse(str, true)
 local treeParserWithReplacedEntities = lazyParser(function() return mkVisitor(true) end)
+-- Parser without `pos` parameter
 local treeParserWithoutPos = lazyParser(function() return mkVisitor(nil,nil,true) end)
+-- Parser without `pos` parameter
 local treeParserWithoutPosWithReplacedEntities = lazyParser(function() return mkVisitor(true,nil,true) end)
+--! @}
 
 local _defaultParser, _defaultParserWithReplacedEntities = treeParser, treeParserWithReplacedEntities
 
+--! @param[in] b boolean|nil : when false, sets parsers that do not take a position as default parsers.
+--! @return old defaultParser and defaultParserWithReplacedEntities
 local function enableWithoutPosParser(b)
   local r1, r2 = _defaultParser, _defaultParserWithReplacedEntities
   if b == nil or b == true then
@@ -302,6 +390,11 @@ local function enableWithoutPosParser(b)
   return r1, r2
 end
 
+--! Sets default parsers for without and with entity replacement.
+--! @param[in] p table|nil : Use treeParser when p is nil
+--! @param[in] pWithReplacedEntities table|boolean|nil :
+--! Use treeParserWithReplacedEntities when pWithReplacedEntities is nil
+--! @return old defaultParser and defaultParserWithReplacedEntities
 local function setDefaultParsers(p, pWithReplacedEntities)
   local r1, r2 = _defaultParser, _defaultParserWithReplacedEntities
   _defaultParser = p or treeParser
@@ -315,16 +408,30 @@ local function setDefaultParsers(p, pWithReplacedEntities)
   return r1, r2
 end
 
+--! Returns a parser.
+--! @param[in] visitorOrEvalEntities table|bool|nil :
+--!   When visitorOrEvalEntities is a boolean or nil,
+--!   a default parser is returned (see \c setDefaultParsers()).
+--!   Otherwise visitorOrEvalEntities is returned.
+--! @return Parser
 local getParser = function(visitorOrEvalEntities)
   return (not visitorOrEvalEntities and _defaultParser) or
          (visitorOrEvalEntities == true and _defaultParserWithReplacedEntities) or
          parser(visitorOrEvalEntities)
 end
 
-local function parse(s, visitorOrEvalEntities, ...)
-  return getParser(visitorOrEvalEntities).parse(s, ...)
+--! Returns a tuple `document table, (string error or nil)`. See `visitor.finish`.
+--! @param[in] s string : xml data
+--! @param[in,out] visitorOrEvalEntities table|bool|nil : see \c getParser()
+--! @param[in,out] ... argument for visitor.init()
+local function parse(xmlstring, visitorOrEvalEntities, ...)
+  return getParser(visitorOrEvalEntities).parse(xmlstring, ...)
 end
 
+--! Return a tuple `document table, error file`.
+--! @param filename[in] string
+--! @param[in,out] visitorOrEvalEntities table|bool|nil : see \c getParser()
+--! @param[in,out] ... argument for visitor.init()
 local function parseFile(filename, visitorOrEvalEntities, ...)
   return getParser(visitorOrEvalEntities).parseFile(filename, ...)
 end
