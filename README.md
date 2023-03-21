@@ -88,7 +88,7 @@ document = {
     { pos=integer, parent=table or nil, tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
     ...
   },
-  bad = { children={ ... } } -- if the number of closed nodes is greater than the open nodes. parent always refers to bad
+  bad = { children={ ... } } -- when a closed node has no match
   preprocessor = { { pos=integer, tag=string, attrs={ { name=string, value=string }, ... } },
   error = string, -- if error
   lastpos = numeric, -- last known position of parse()

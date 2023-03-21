@@ -23,34 +23,35 @@ end
 
 r = 0
 
-function check(tdoc, err, s, input, ierr)
+function check(tdoc, err, s, input, ierr, resultError)
   local doc = str(tdoc)
-  if err or s ~= doc then
+  if resultError ~= err or s ~= doc then
     (#arg ~= 0 and error or print)('[FAILURE]\n  ' .. s .. '\n  ==\n  ' .. doc .. '\n with ' .. input)
     if err then print('  ' .. err .. '/' .. ierr) end
+    print()
     r = r + 1
   end
 end
 
-function _eq(parser, s, sxml, replaceEntities)
+function _eq(parser, s, sxml, replaceEntities, resultError)
   local tdoc, err = parser.parse(sxml, replaceEntities)
-  check(tdoc, err, s, sxml, #sxml)
+  check(tdoc, err, s, sxml, #sxml, resultError)
 end
 
 function _feq(parser, s, filename)
   local tdoc, err = parser.parseFile(filename)
-  check(tdoc, err, s, 'file ' .. filename, '???')
+  check(tdoc, err, s, 'file ' .. filename, '???', resultError)
 end
 
 function _nopos(s)
-  return s:gsub(',pos:%d+', '')
+  return s:gsub(',pos:%d+', ''):gsub(' at position %d+', '')
 end
 
 function mkEq(eq)
-  return function(s, ...)
-    eq(xmllpegparser, s, ...)
+  return function(s, filename_or_sxml, replaceEntities, resultError)
+    eq(xmllpegparser, s, filename_or_sxml, replaceEntities, resultError)
     xmllpegparser.enableWithoutPosParser()
-    eq(xmllpegparser, _nopos(s), ...)
+    eq(xmllpegparser, _nopos(s), filename_or_sxml, replaceEntities, resultError and _nopos(resultError))
     xmllpegparser.enableWithoutPosParser(false)
   end
 end
@@ -59,6 +60,14 @@ local eq, feq = mkEq(_eq), mkEq(_feq)
 
 
 xmllpegparser = require'xmllpegparser'
+
+-- single inline tag
+eq('{children:{1:{attrs:{},children:{},parent:nil,pos:1,tag:a,},},entities:{},lastpos:5,preprocessor:{},}',
+   '<a/>')
+
+-- single tag
+eq('{children:{1:{attrs:{},children:{1:{parent:a,pos:5,text:b,},},parent:nil,pos:1,tag:a,},},entities:{},lastpos:11,preprocessor:{},}',
+   '<a> b </a>')
 
 eq('{children:{1:{attrs:{},children:{},parent:nil,pos:1,tag:a,},2:{attrs:{},children:{1:{parent:b,pos:11,text:ad,},},parent:nil,pos:8,tag:b,},3:{attrs:{},children:{},parent:nil,pos:17,tag:c,},4:{attrs:{},children:{1:{attrs:{},children:{1:{parent:e,pos:27,text:ds,},},parent:d,pos:24,tag:e,},},parent:nil,pos:21,tag:d,},5:{attrs:{},children:{1:{parent:f,pos:40,text:a,},2:{attrs:{},children:{},parent:f,pos:41,tag:g,},3:{parent:f,pos:45,text:b,},},parent:nil,pos:37,tag:f,},},entities:{},lastpos:50,preprocessor:{},}',
    '<a></a><b>ad</b><c/><d><e>ds</e></d><f>a<g/>b</f>')
@@ -69,15 +78,33 @@ eq('{children:{1:{attrs:{name:value,},children:{},parent:nil,pos:1,tag:a,},2:{at
 eq('{children:{1:{attrs:{name:v>a,},children:{},parent:nil,pos:1,tag:a,},2:{parent:nil,pos:16,text:> b,},3:{attrs:{name:>,},children:{1:{parent:c,pos:31,text:d,},},parent:nil,pos:19,tag:c,},4:{attrs:{name:a,},children:{1:{parent:e,pos:48,text:>f,},},parent:nil,pos:36,tag:e,},},entities:{},lastpos:54,preprocessor:{},}',
    '<a name="v>a"/>> b<c name=">">d</c><e name="a">>f</e>')
 
-eq('{children:{1:{attrs:{},children:{1:{parent:a,pos:5,text:b,},},parent:nil,pos:1,tag:a,},},entities:{},lastpos:11,preprocessor:{},}',
-   '<a> b </a>')
-
+-- entity without replacement
 eq('{children:{1:{attrs:{},children:{1:{parent:a,pos:75,text:b,},},parent:nil,pos:72,tag:a,},},entities:{1:{name:e1,pos:29,value:fdd>d,},2:{name:e2,pos:53,value:a,},},lastpos:80,preprocessor:{},}',
    '<!DOCTYPE l SYSTEM "l.dtd"[ <!ENTITY e1   "fdd>d">  <!ENTITY e2 "a"> ]><a>b</a>')
 
+-- entity with replacement
 eq('{children:{1:{attrs:{},children:{1:{parent:a,pos:75,text:fdd>ddsa;,},},parent:nil,pos:72,tag:a,},},entities:{1:{name:e1,pos:29,value:fdd>d,},2:{name:e2,pos:53,value:a,},},lastpos:90,preprocessor:{},tentities:{amp:&,apos:\',e1:fdd>d,e2:a,gt:>,lt:<,nbsp: ,quot:",tab:\t,},}',
    '<!DOCTYPE l SYSTEM "l.dtd" [<!ENTITY e1   "fdd>d">  <!ENTITY e2 "a"> ]><a>&e1;ds&e2;;</a>', true)
 
+-- missing closing tag
+eq('{children:{1:{attrs:{},children:{1:{parent:AA,pos:6,text:b,},},parent:nil,pos:1,tag:AA,},},entities:{},error:No matching closing tag for AA at position 1,lastpos:7,preprocessor:{},}',
+   '<AA> b', false, 'No matching closing tag for AA at position 1')
+
+-- closing tag does not match
+eq('{bad:{children:{1:{children:{},pos:8,tag:BB,},},},children:{1:{attrs:{},children:{1:{parent:AA,pos:6,text:b,},},parent:nil,pos:1,tag:AA,},},entities:{},error:No matching opening tag for BB at position 8,lastpos:13,preprocessor:{},}',
+   '<AA> b </BB>', false, 'No matching opening tag for BB at position 8')
+
+-- closing tag only
+eq('{bad:{children:{1:{children:{},pos:1,tag:BB,},},},children:{},entities:{},error:No matching opening tag for BB at position 1,lastpos:6,preprocessor:{},}',
+   '</BB>', false, 'No matching opening tag for BB at position 1')
+
+-- closing tag then tag
+eq('{bad:{children:{1:{children:{},pos:1,tag:BB,},2:{attrs:{},children:{},parent:nil,pos:6,tag:a,},},},children:{},entities:{},error:No matching opening tag for BB at position 1,lastpos:13,preprocessor:{},}',
+   '</BB><a></a>', false, 'No matching opening tag for BB at position 1')
+
+-- too many closing tag
+eq('{bad:{children:{1:{children:{},pos:12,tag:BB,},},},children:{1:{attrs:{},children:{1:{parent:a,pos:5,text:b,},},parent:nil,pos:1,tag:a,},},entities:{},error:No matching opening tag for BB at position 12,lastpos:17,preprocessor:{},}',
+   '<a> b </a> </BB>', false, 'No matching opening tag for BB at position 12')
 
 feq('{children:{1:{attrs:{},children:{1:{attrs:{attribute:&entity1;,},children:{1:{parent:lvl1,pos:185,text:something,},},parent:xml,pos:157,tag:lvl1,},2:{parent:xml,pos:204,text:blah blah,},3:{attrs:{attribute:value,},children:{},parent:xml,pos:216,tag:lvl1,},4:{attrs:{},children:{1:{attrs:{},children:{1:{parent:lvl2,pos:275,text:something,},},parent:other,pos:262,tag:lvl2,},},parent:xml,pos:250,tag:other,},},parent:nil,pos:149,tag:xml,},},entities:{1:{name:entity1,pos:88,value:something,},2:{name:entity2,pos:121,value:test,},},lastpos:315,preprocessor:{1:{attrs:{encoding:UTF-8,version:1.0,},pos:1,tag:xml,},},}',
    'example.xml')

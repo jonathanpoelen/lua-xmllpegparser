@@ -212,7 +212,7 @@ end
 --! @param[in] withoutPosition boolean
 --! @return visitor table and true for safeVisitor (see parser())
 local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
-  local elem, doc, SubEntity, accuattr, doctype, cdata, text
+  local root, elem, doc, bad, SubEntity, accuattr, doctype, cdata, text, badclose
   local mkDefaultEntities = defaultEntities and (
     type(defaultEntities) == 'table' and function()
       local t = {}
@@ -265,6 +265,15 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
     end
   end
 
+  local pushCloseError = function(tagname, pos)
+    local errElem = withoutPosition
+      and {tag=tagname, children={}}
+      or {tag=tagname, children={}, pos=pos-2}
+    bad.children[#bad.children+1] = errElem
+    badclose = badclose or errElem
+    elem = elem or bad
+  end
+
   return {
     withpos=not withoutPosition,
     accuattr=accuattr,
@@ -273,30 +282,28 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
     text=text,
 
     init=function()
-      elem = {children={}, bad={children={}}}
-      doc = {preprocessor={}, entities={}, document=elem}
-      elem.parent = bad
-      elem.bad.parent = elem.bad
+      bad = {children={}}
+      root = {children={}}
+      doc = {preprocessor={}, entities={}, children=root.children}
+      elem = root
+      badclose = nil
       if evalEntities then
         SubEntity = mkReplaceEntities(mkDefaultEntities())
       end
     end,
 
     finish=function(err, pos)
-      if doc.document ~= elem then
-        err = (err and err .. ' ' or '') .. 'No matching close for ' .. tostring(elem.tag) .. ' at position ' .. tostring(elem.pos)
+      if badclose then
+        doc.bad = bad
+        err = (err and err .. ' ' or '')
+           .. 'No matching opening tag for ' .. tostring(badclose.tag)
+           .. (badclose.pos and ' at position ' .. tostring(badclose.pos) or '')
+      elseif root ~= elem then
+        err = (err and err .. ' ' or '')
+           .. 'No matching closing tag for ' .. tostring(elem.tag)
+           .. (elem.pos and ' at position ' .. tostring(elem.pos) or '')
       end
-      doc.bad = doc.document.bad
-      doc.bad.parent = nil
-      doc.document.bad = nil
-      doc.document.parent = nil
-      doc.children = doc.document.children
-      doc.document = nil
-      if 0 == #doc.bad.children then
-        doc.bad = nil
-      else
-        err = (err and err .. ' ' or '') .. 'No matching open for ' .. tostring(doc.bad.children[1].tag) .. ' at position ' .. tostring(doc.bad.children[1].pos)
-      end
+
       doc.lastpos = pos
       if err then
         doc.error = err
@@ -326,8 +333,20 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
       elem = elem.children[#elem.children]
     end,
 
-    close=function()
+    close=withoutPosition and function(tagname)
+      local currentTag = elem.tag
       elem = elem.parent
+      if elem and currentTag == tagname then
+        return
+      end
+      pushCloseError(tagname)
+    end or function(pos, tagname)
+      local currentTag = elem.tag
+      elem = elem.parent
+      if elem and currentTag == tagname then
+        return
+      end
+      pushCloseError(tagname, pos)
     end,
   }, true -- safeVisitor
 end
@@ -354,7 +373,7 @@ end
 --!       { pos=integer, parent=table or nil, tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
 --!       ...
 --!     },
---!     bad = { children={ ... } } -- if the number of closed nodes is greater than the open nodes. parent always refers to bad
+--!     bad = { children={ ... } } -- when a closed node has no match
 --!     preprocessor = { { pos=integer, tag=string, attrs={ { name=string, value=string }, ... } },
 --!     error = string, -- if error
 --!     lastpos = numeric, -- last known position of parse()
