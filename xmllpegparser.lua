@@ -21,8 +21,8 @@ local  Name = ((R('az','AZ') + S'_') * (R('az','AZ') + S'_-:' + R'09')^0)
 local CName = C(Name)
 local  Attr =   ( Name * Space0 * '=' * Space0 *  String )
 local CAttr = Cg(CName * Space0 * '=' * Space0 * CString)
-local  Comment = '<!--' *  (1-P'-->')^0 * '-->'
-local CComment = '<!--' * C(1-P'-->')^0 * '-->'
+local  XMLComment = '<!--' *  (1-P'-->')^0 * '-->'
+local CXMLComment = '<!--' * C(1-P'-->')^0 * '-->'
 local  Entity =   ('<!ENTITY' * Space1 *  Name * Space1 *  String * Space0 * '>')
 local CEntity = Cg('<!ENTITY' * Space1 * CName * Space1 * CString * Space0 * '>')
 
@@ -46,7 +46,7 @@ local _parser = function(v, safeVisitor)
   local call = safeVisitor == true and safeCall or unsafeCall
   local mark = (v.withpos and addI or ident)
 
-  local Comment = v.comment and call(CComment, v.comment) or Comment
+  local Comment = v.comment and call(CXMLComment, v.comment) or XMLComment
   local Comments = Space0 * (Comment * Space0)^0
 
   local hasAttr = v.accuattr or (v.accuattr ~= false and (v.tag or v.proc))
@@ -212,7 +212,7 @@ end
 --! @param[in] withoutPosition boolean
 --! @return visitor table and true for safeVisitor (see parser())
 local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
-  local root, elem, doc, bad, SubEntity, accuattr, doctype, cdata, text, badclose
+  local root, elem, doc, bad, SubEntity, accuattr, doctype, text, badclose
   local mkDefaultEntities = defaultEntities and (
     type(defaultEntities) == 'table' and function()
       local t = {}
@@ -230,26 +230,23 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
       return a
     end
 
-    doctype = withoutPosition and function(name, cat, path)
-      doc.tentities = createEntityTable(doc.entities, mkDefaultEntities())
-      SubEntity = mkReplaceEntities(doc.tentities)
-    end or function(pos, name, cat, path)
+    doctype = function(--[[ [pos, ]name, cat, path]])
       doc.tentities = createEntityTable(doc.entities, mkDefaultEntities())
       SubEntity = mkReplaceEntities(doc.tentities)
     end
 
-    text = withoutPosition and function(text)
-      elem.children[#elem.children+1] = {parent=elem, text=SubEntity:match(text)}
-    end or function(pos, text)
-      elem.children[#elem.children+1] = {parent=elem, text=SubEntity:match(text), pos=pos}
+    text = withoutPosition and function(str)
+      elem.children[#elem.children+1] = {parent=elem, text=SubEntity:match(str)}
+    end or function(pos, str)
+      elem.children[#elem.children+1] = {parent=elem, text=SubEntity:match(str), pos=pos}
     end
   else
     -- accuattr = noop
     -- doctype = noop
-    text = withoutPosition and function(text)
-      elem.children[#elem.children+1] = {parent=elem, text=text}
-    end or function(pos, text)
-      elem.children[#elem.children+1] = {parent=elem, text=text, pos=pos}
+    text = withoutPosition and function(str)
+      elem.children[#elem.children+1] = {parent=elem, text=str}
+    end or function(pos, str)
+      elem.children[#elem.children+1] = {parent=elem, text=str, pos=pos}
     end
   end
 
@@ -268,10 +265,10 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
     doctype=doctype,
     text=text,
 
-    cdata = withoutPosition and function(text)
-      elem.children[#elem.children+1] = {parent=elem, text=text, cdata=true}
-    end or function(pos, text)
-      elem.children[#elem.children+1] = {parent=elem, text=text, cdata=true, pos=pos-9}
+    cdata = withoutPosition and function(str)
+      elem.children[#elem.children+1] = {parent=elem, text=str, cdata=true}
+    end or function(pos, str)
+      elem.children[#elem.children+1] = {parent=elem, text=str, cdata=true, pos=pos-9}
     end,
 
     init=function()
