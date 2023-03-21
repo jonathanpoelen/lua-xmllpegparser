@@ -196,7 +196,7 @@ end
 --! @param[in,out] resultEntities table|nil
 --! @return table
 local function createEntityTable(docEntities, resultEntities)
-  entities = resultEntities or defaultEntityTable()
+  local entities = resultEntities or defaultEntityTable()
   for _,e in pairs(docEntities) do
     e.value = replaceEntities(e.value, entities)
     entities[e.name] = e.value
