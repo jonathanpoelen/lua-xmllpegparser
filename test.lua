@@ -61,6 +61,18 @@ local eq, feq = mkEq(_eq), mkEq(_feq)
 
 xmllpegparser = require'xmllpegparser'
 
+-- empty file
+eq('{children:{},entities:{},lastpos:1,preprocessor:{},}',
+   '')
+
+-- comment
+eq('{children:{},entities:{},lastpos:17,preprocessor:{},}',
+   '<!-- comment -->')
+
+-- single text
+eq('{children:{1:{parent:nil,pos:1,text:abc,},},entities:{},lastpos:4,preprocessor:{},}',
+   'abc')
+
 -- single inline tag
 eq('{children:{1:{attrs:{},children:{},parent:nil,pos:1,tag:a,},},entities:{},lastpos:5,preprocessor:{},}',
    '<a/>')
