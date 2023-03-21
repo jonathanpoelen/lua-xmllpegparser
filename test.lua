@@ -69,6 +69,14 @@ eq('{children:{1:{attrs:{},children:{},parent:nil,pos:1,tag:a,},},entities:{},la
 eq('{children:{1:{attrs:{},children:{1:{parent:a,pos:5,text:b,},},parent:nil,pos:1,tag:a,},},entities:{},lastpos:11,preprocessor:{},}',
    '<a> b </a>')
 
+-- CDATA
+eq('{children:{1:{cdata:true,parent:nil,pos:1,text: xy &amp; ,},},entities:{},lastpos:23,preprocessor:{},}',
+   '<![CDATA[ xy &amp; ]]>')
+
+-- CDATA with entity replacement
+eq('{children:{1:{cdata:true,parent:nil,pos:1,text: xy &amp; ,},},entities:{},lastpos:23,preprocessor:{},}',
+   '<![CDATA[ xy &amp; ]]>', true)
+
 eq('{children:{1:{attrs:{},children:{},parent:nil,pos:1,tag:a,},2:{attrs:{},children:{1:{parent:b,pos:11,text:ad,},},parent:nil,pos:8,tag:b,},3:{attrs:{},children:{},parent:nil,pos:17,tag:c,},4:{attrs:{},children:{1:{attrs:{},children:{1:{parent:e,pos:27,text:ds,},},parent:d,pos:24,tag:e,},},parent:nil,pos:21,tag:d,},5:{attrs:{},children:{1:{parent:f,pos:40,text:a,},2:{attrs:{},children:{},parent:f,pos:41,tag:g,},3:{parent:f,pos:45,text:b,},},parent:nil,pos:37,tag:f,},},entities:{},lastpos:50,preprocessor:{},}',
    '<a></a><b>ad</b><c/><d><e>ds</e></d><f>a<g/>b</f>')
 

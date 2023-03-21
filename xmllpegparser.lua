@@ -238,12 +238,6 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
       SubEntity = mkReplaceEntities(doc.tentities)
     end
 
-    cdata = withoutPosition and function(text)
-      elem.children[#elem.children+1] = {parent=elem, text=SubEntity:match(text), cdata=true}
-    end or function(text)
-      elem.children[#elem.children+1] = {parent=elem, text=SubEntity:match(text), cdata=true, pos=pos-9}
-    end
-
     text = withoutPosition and function(text)
       elem.children[#elem.children+1] = {parent=elem, text=SubEntity:match(text)}
     end or function(pos, text)
@@ -252,12 +246,6 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
   else
     -- accuattr = noop
     -- doctype = noop
-    cdata = withoutPosition and function(text)
-      elem.children[#elem.children+1] = {parent=elem, text=text, cdata=true}
-    end or function(pos, text)
-      elem.children[#elem.children+1] = {parent=elem, text=text, cdata=true, pos=pos-9}
-    end
-
     text = withoutPosition and function(text)
       elem.children[#elem.children+1] = {parent=elem, text=text}
     end or function(pos, text)
@@ -278,8 +266,13 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
     withpos=not withoutPosition,
     accuattr=accuattr,
     doctype=doctype,
-    cdata=cdata,
     text=text,
+
+    cdata = withoutPosition and function(text)
+      elem.children[#elem.children+1] = {parent=elem, text=text, cdata=true}
+    end or function(pos, text)
+      elem.children[#elem.children+1] = {parent=elem, text=text, cdata=true, pos=pos-9}
+    end,
 
     init=function()
       bad = {children={}}
