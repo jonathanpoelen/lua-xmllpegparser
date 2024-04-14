@@ -21,11 +21,11 @@
 ## Installation
 
 ```bash
-luarocks install --local https://raw.githubusercontent.com/jonathanpoelen/lua-xmllpegparser/master/xmllpegparser-2.1-6.rockspec
+luarocks install --local https://raw.githubusercontent.com/jonathanpoelen/lua-xmllpegparser/master/xmllpegparser-2.2-0.rockspec
 
 # or in your local directory lua-xmllpegparser
 
-luarocks make --local xmllpegparser-2.1-6.rockspec
+luarocks make --local xmllpegparser-2.2-0.rockspec
 ```
 
 ## Test
