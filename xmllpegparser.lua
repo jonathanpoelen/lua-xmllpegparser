@@ -32,7 +32,7 @@ local noop = function()end
 local mt = {__call = function(_, ...) return _.parse(...) end}
 
 local addI = function(x) return I * x end
-local ident = function(x) return x end
+local identityFn = function(x) return x end
 
 -- force a no captured value with a query function
 local unsafeCall = function(patt, func)
@@ -45,7 +45,7 @@ end
 
 local _parser = function(v, safeVisitor)
   local call = safeVisitor == true and safeCall or unsafeCall
-  local mark = (v.withpos and addI or ident)
+  local mark = (v.withpos and addI or identityFn)
 
   local Comment = v.comment and call(CXMLComment, v.comment) or XMLComment
   local Comments = Space0 * (Comment * Space0)^0
@@ -490,10 +490,6 @@ local function toStringComputeIndent(tindent, lvl, indentationText)
   return prefix
 end
 
-local function identity(x)
-  return x
-end
-
 local function escapeComment(s)
   s = s:gsub('--', '—')
   return s
@@ -569,10 +565,10 @@ end
 local function documentToString(tdoc, indentationText, params)
   local escapeFns = params and params.escapes
   -- luacheck: push ignore 431
-  local escapeAttr = escapeFns and escapeFns.attr or identity
-  local escapeText = escapeFns and escapeFns.text or identity
-  local escapeCDATA = escapeFns and escapeFns.cdata or identity
-  local escapeComment = escapeFns and escapeFns.comment or identity
+  local escapeAttr = escapeFns and escapeFns.attr or identityFn
+  local escapeText = escapeFns and escapeFns.text or identityFn
+  local escapeCDATA = escapeFns and escapeFns.cdata or identityFn
+  local escapeComment = escapeFns and escapeFns.comment or identityFn
   -- luacheck: pop
   local inlineTextLengthMax = params and params.inlineTextLengthMax or 9999999
   local shortEmptyElements = not params or params.shortEmptyElements == nil or params.shortEmptyElements
@@ -597,7 +593,7 @@ local function documentToString(tdoc, indentationText, params)
       end, flatAttrs, nil
     end
   elseif params.stableAttributes == false then
-    attrIter = identity
+    attrIter = identityFn
   else
     attrIter = params.stableAttributes
   end
