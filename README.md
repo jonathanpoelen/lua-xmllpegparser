@@ -115,23 +115,22 @@ Returns the previous parsers.
 - `escapeTextAndAmp(string):string` replace `<` with `&lt;` and `&` with `&amp;`
 
 
-
-
 ### Document structure (default parser)
 
 ```lua
 -- pos member = index of string
 document = {
   children = {
-    { pos=integer, parent=table or nil, text=string[, cdata=true] } or
-    { pos=integer, parent=table or nil, tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
+    { pos=number, parent=table or nil, text=string[, cdata=true] } or
+    { pos=number, parent=table or nil, tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
     ...
   },
   bad = { children={ ... } } -- when a closed node has no match
-  preprocessor = { { pos=integer, tag=string, attrs={ { name=string, value=string }, ... } },
+  preprocessor = { { pos=number, tag=string, attrs={ { name=string, value=string }, ... } },
+  doctype = { pos=number, name=string, ident=string or nil, pubident=string or nil, dtd=string or nil }, -- if there is a doctype
   error = string, -- if error
   lastpos = number, -- last known position of parse()
-  entities = { { pos=integer, name=string, value=string }, ... },
+  entities = { { pos=number, name=string, value=string }, ... },
   tentities = { name=value, ... } -- only if subEntities = true
 }
 ```
@@ -157,7 +156,7 @@ Each member is optionnal.
   finish = function(err, pos, xmlstring), -- called after parsing, returns (doc, err) or nil
   proc = function(pos, name, attrs), -- for `<?...?>`
   entity = function(pos, name, value),
-  doctype = function(pos, name, cat, path), -- called after all entity()
+  doctype = function(pos, name, ident, pubident, dtd), -- called after all entity()
   accuattr = function(table, name, value), -- `table` is an accumulator that will be transmitted to tag.attrs. Set to `false` for disable this function.
                                            -- If `nil` and `tag` is `not nil`, a default accumalator is used.
                                            -- If `false`, the accumulator is disabled.
@@ -176,7 +175,6 @@ Each member is optionnal.
 - Non-validating
 - No DTD support
 - Ignore processing instructions
-- Ignore DOCTYPE, parse only ENTITY
 
 
 ## Licence

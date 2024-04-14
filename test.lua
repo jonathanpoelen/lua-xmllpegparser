@@ -31,7 +31,7 @@ r = 0
 
 function printError(a, b, input, err, ierr)
   -- compute the position where the difference begins
-  local idiffer
+  local idiffer = 0
   for i=1,math.min(#a, #b) + 1 do
     if a:byte(i) ~= b:byte(i) then
       idiffer = i - 1
@@ -191,6 +191,100 @@ eq([[{
     preprocessor: {},
   }]],
    '<![CDATA[ xy &amp; ]]>', true)
+
+eq([[{
+    children: {},
+    doctype: {
+      name: language,
+      pos: 1,
+    },
+    entities: {},
+    lastpos: 20,
+    preprocessor: {},
+  }]],
+  '<!DOCTYPE language>')
+
+eq([[{
+    children: {},
+    doctype: {
+      name: language,
+      pos: 2,
+    },
+    entities: {},
+    lastpos: 23,
+    preprocessor: {},
+  }]],
+  ' <!DOCTYPE language[]>')
+
+eq([[{
+    children: {},
+    doctype: {
+      name: language,
+      pos: 1,
+    },
+    entities: {},
+    lastpos: 23,
+    preprocessor: {},
+  }]],
+  '<!DOCTYPE language[] >')
+
+eq([[{
+    children: {},
+    doctype: {
+      dtd: language.dtd,
+      ident: SYSTEM,
+      name: language,
+      pos: 1,
+    },
+    entities: {},
+    lastpos: 42,
+    preprocessor: {},
+  }]],
+  '<!DOCTYPE language SYSTEM "language.dtd">')
+
+eq([[{
+    children: {},
+    doctype: {
+      dtd: language.dtd,
+      ident: PUBLIC,
+      name: language,
+      pos: 1,
+      pubident: /quotedFPI/,
+    },
+    entities: {},
+    lastpos: 56,
+    preprocessor: {},
+  }]],
+  '<!DOCTYPE language PUBLIC "/quotedFPI/" "language.dtd">')
+
+eq([[{
+    children: {},
+    doctype: {
+      dtd: language.dtd,
+      ident: SYSTEM,
+      name: language,
+      pos: 1,
+    },
+    entities: {},
+    lastpos: 44,
+    preprocessor: {},
+  }]],
+  '<!DOCTYPE language SYSTEM "language.dtd"[]>')
+
+eq([[{
+    children: {},
+    doctype: {
+      dtd: language.dtd,
+      ident: PUBLIC,
+      name: language,
+      pos: 1,
+      pubident: blabla,
+    },
+    entities: {},
+    lastpos: 53,
+    preprocessor: {},
+  }]],
+  '<!DOCTYPE language PUBLIC "blabla" "language.dtd"[]>')
 
 eq([[{
     children: {
@@ -390,6 +484,12 @@ eq([[{
         tag: a,
       },
     },
+    doctype: {
+      dtd: l.dtd,
+      ident: SYSTEM,
+      name: l,
+      pos: 1,
+    },
     entities: {
       1: {
         name: e1,
@@ -423,6 +523,12 @@ eq([[{
         pos: 72,
         tag: a,
       },
+    },
+    doctype: {
+      dtd: l.dtd,
+      ident: SYSTEM,
+      name: l,
+      pos: 1,
     },
     entities: {
       1: {
@@ -648,6 +754,12 @@ feq([[{
         tag: xml,
       },
     },
+    doctype: {
+      dtd: something.dtd,
+      ident: SYSTEM,
+      name: something,
+      pos: 40,
+    },
     entities: {
       1: {
         name: entity1,
@@ -771,54 +883,6 @@ peq([[{
   }]],
     '<!DOCTYPE language[<!ENTITY y "yyy">]><a></a>')
 
-do
-  local d
-  local doctypeVisitor = xmllpegparser.parser({
-    init=function()
-      d = {}
-    end,
-    finish=function()
-      return d
-    end,
-    doctype=function(name, cat, path)
-      d = {name=name, cat=cat, path=path}
-    end
-  })
-
-  function doctypeEq(s, sxml)
-    _eq(doctypeVisitor, s, sxml)
-  end
-end
-
-doctypeEq([[{
-    name: language,
-  }]],
-  '<!DOCTYPE language>')
-
-doctypeEq([[{
-    name: language,
-  }]],
-  '<!DOCTYPE language[]>')
-
-doctypeEq([[{
-    name: language,
-  }]],
-  '<!DOCTYPE language[] >')
-
-doctypeEq([[{
-    cat: SYSTEM,
-    name: language,
-    path: language.dtd,
-  }]],
-  '<!DOCTYPE language SYSTEM "language.dtd">')
-
-doctypeEq([[{
-    cat: SYSTEM,
-    name: language,
-    path: language.dtd,
-  }]],
-  '<!DOCTYPE language SYSTEM "language.dtd"[]>')
-
 
 tdoc = xmllpegparser.parse([=[
 <?xml version="1.0" encoding="UTF-8"?>
@@ -860,10 +924,20 @@ sxml1 = '<xml>' ..
 '</xml>'
 checkToString({children=tdoc.children}, sxml1)
 
-checkToString(tdoc, '<?xml encoding="UTF-8" version="1.0"?>' .. sxml1)
+checkToString(tdoc,
+  '<?xml encoding="UTF-8" version="1.0"?>' ..
+  '<!DOCTYPE something SYSTEM "" "something.dtd"[' ..
+    '<!ENTITY entity1 "something">' ..
+    '<!ENTITY entity2 "test">' ..
+  ']>' ..
+  sxml1)
 
 checkToString(tdoc, [=[
 <?xml encoding="UTF-8" version="1.0"?>
+<!DOCTYPE something SYSTEM "" "something.dtd"[
+    <!ENTITY entity1 "something">
+    <!ENTITY entity2 "test">
+]>
 <xml>
     <lvl1 attribute="&entity1;">something</lvl1>
     <lvl1 attribute="&entity1;">something bla bla bla &entity2;</lvl1>
@@ -877,6 +951,10 @@ checkToString(tdoc, [=[
 
 checkToString(tdoc, [=[
 <?xml encoding="UTF-8" version="1.0"?>
+<!DOCTYPE something SYSTEM "" "something.dtd"[
+..<!ENTITY entity1 "something">
+..<!ENTITY entity2 "test">
+]>
 <xml>
 ..<lvl1 attribute="&amp;entity1;">something</lvl1>
 ..<lvl1 attribute="&amp;entity1;">

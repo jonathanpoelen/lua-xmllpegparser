@@ -10,7 +10,8 @@ local Cf = lpeg.Cf
 local Cs = lpeg.Cs
 local P = lpeg.P
 local I = lpeg.Cp()
-local Cc = lpeg.Cc()
+local Cc = lpeg.Cc
+local Ce = Cc()
 
 local Space = S' \n\t'
 local Space0 = Space^0
@@ -65,16 +66,23 @@ local _parser = function(v, safeVisitor)
     (Comments * call(Cg(mark(CEntity)), v.entity))^0 or
     (Comments *               Entity             )^0
 
+  local DoctypeEnt = Space0 * (P'>' + '[' * Entities * Comments * ']' * Space0 * '>')
   local Doctype = v.doctype and
-    Comments * ('<!DOCTYPE' * Space1 * call(mark(CName) * (Space1 * C(R'AZ'^1) * Space1 * CString)^-1 * Space0 * (P'>' + '[' * Entities * Comments * ']' * Space0 * '>'), v.doctype))^-1 or
-    Comments * ('<!DOCTYPE' * Space1 *            Name  * (Space1 *  (R'AZ'^1) * Space1 *  String)^-1 * Space0 * (P'>' + '[' * Entities * Comments * ']' * Space0 * '>')            )^-1
+    Comments * (call(mark('<!DOCTYPE') * Space1 * CName * (Space1
+      * ( C('SYSTEM') * Space1 * Cc(nil) * CString
+        + C(R'AZ'^1) * Space1 * CString * Space1 * CString
+      ))^-1 * DoctypeEnt, v.doctype))^-1
+    or
+    Comments * (          '<!DOCTYPE'  * Space1 *  Name * (Space1
+      *     R'AZ'^1  * Space1 * String * (Space1 * String)^-1
+       )^-1 * DoctypeEnt)^-1
 
   local Tag = v.tag and
     '<' * call(mark(CName) * TagAttrs, v.tag) or
     '<' *            Name  * TagAttrs
 
   local Open = v.open and
-    P'>' * call(Cc, v.open) + '/>' or
+    P'>' * call(Ce, v.open) + '/>' or
     P'>'                    + '/>'
 
   local Close = v.close and
@@ -138,7 +146,7 @@ end
 --!     finish = function(err, pos, xmlstring), -- called after parsing, returns (doc, err) or nil
 --!     proc = function(pos, name, attrs) or function(name, attrs), -- for `<?...?>`
 --!     entity = function(entityName, entityValue),
---!     doctype = function(pos, name, cat, path) or function(name, cat, path), -- called after all entity()
+--!     doctype = function(pos, name, ident, pubident, dtd) or function(name, ident, pubident, dtd), -- called after all entity()
 --!     accuattr = function(table, entityName, entityValue),
 --!         -- `table` is an accumulator that will be transmitted to tag.attrs.
 --!         -- Set to `false` for disable this function.
@@ -189,12 +197,11 @@ local function replaceEntities(s, entities)
   return s:gsub('&([^;]+);', entities)
 end
 
---! Add entities to resultEntities then return it.
+--! Add entities to resultEntities from the document entity table.
 --! Create new table when resultEntities is nil.
---! Create an entity table from the document entity table.
 --! @param[in] docEntities table
 --! @param[in,out] resultEntities table|nil
---! @return table
+--! @return resultEntities or a new table when nil
 local function createEntityTable(docEntities, resultEntities)
   local entities = resultEntities or defaultEntityTable()
   for _,e in pairs(docEntities) do
@@ -230,7 +237,12 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
       return a
     end
 
-    doctype = function(--[[ [pos, ]name, cat, path]])
+    doctype = withoutPosition and function(name, ident, pubident, dtd)
+      doc.doctype = {name=name, ident=ident, pubident=pubident, dtd=dtd}
+      doc.tentities = createEntityTable(doc.entities, mkDefaultEntities())
+      SubEntity = mkReplaceEntities(doc.tentities)
+    end or function(pos, name, ident, pubident, dtd)
+      doc.doctype = {name=name, ident=ident, pubident=pubident, dtd=dtd, pos=pos}
       doc.tentities = createEntityTable(doc.entities, mkDefaultEntities())
       SubEntity = mkReplaceEntities(doc.tentities)
     end
@@ -242,7 +254,13 @@ local function mkVisitor(evalEntities, defaultEntities, withoutPosition)
     end
   else
     -- accuattr = noop
-    -- doctype = noop
+
+    doctype = withoutPosition and function(name, ident, pubident, dtd)
+      doc.doctype = {name=name, ident=ident, pubident=pubident, dtd=dtd}
+    end or function(pos, name, ident, pubident, dtd)
+      doc.doctype = {name=name, ident=ident, pubident=pubident, dtd=dtd, pos=pos}
+    end
+
     text = withoutPosition and function(str)
       elem.children[#elem.children+1] = {parent=elem, text=str}
     end or function(pos, str)
@@ -359,15 +377,16 @@ end
 --!   -- pos member = index of string. Only when visitor.withPos == true
 --!   document = {
 --!     children = {
---!       { pos=integer, parent=table or nil, text=string[, cdata=true] } or
---!       { pos=integer, parent=table or nil, tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
+--!       { pos=number, parent=table or nil, text=string[, cdata=true] } or
+--!       { pos=number, parent=table or nil, tag=string, attrs={ { name=string, value=string }, ... }, children={ ... } },
 --!       ...
 --!     },
 --!     bad = { children={ ... } } -- when a closed node has no match
---!     preprocessor = { { pos=integer, tag=string, attrs={ { name=string, value=string }, ... } },
+--!     preprocessor = { { pos=number, tag=string, attrs={ { name=string, value=string }, ... } },
+--!     doctype = { pos=number, name=string, ident=string, pubident=string or nil, dtd=string or nil }, -- if there is a doctype
 --!     error = string, -- if error
 --!     lastpos = number, -- last known position of parse()
---!     entities = { { pos=integer, name=string, value=string }, ... },
+--!     entities = { { pos=number, name=string, value=string }, ... },
 --!     tentities = { name=value, ... } -- only if subEntities = true
 --!   }
 --! @endcode
@@ -595,19 +614,73 @@ local function documentToString(tdoc, indentationText, params)
     end
   end
 
+  local prefix = indentationText and '\n' or ''
+  local tindent = {prefix}
+
+  indentationText = indentationText or ''
+
+  local doctype = tdoc.doctype
+  if doctype then
+    if proc then
+      tinsert(strs, prefix)
+    end
+
+    tinsert(strs, '<!DOCTYPE ')
+    tinsert(strs, doctype.name or '')
+    if doctype.ident then
+      tinsert(strs, ' ')
+      tinsert(strs, doctype.ident)
+      if doctype.ident then
+        tinsert(strs, ' "')
+        tinsert(strs, doctype.pubident)
+        tinsert(strs, '"')
+      end
+      if doctype.dtd then
+        tinsert(strs, ' "')
+        tinsert(strs, doctype.dtd)
+        tinsert(strs, '"')
+      end
+    end
+
+    if tdoc.entities or tdoc.tentities then
+      local indent = prefix .. indentationText
+      tindent[2] = indent
+
+      local addEntity = function(name, value)
+        tinsert(strs, indent)
+        tinsert(strs, '<!ENTITY ')
+        tinsert(strs, name)
+        tinsert(strs, ' "')
+        tinsert(strs, value)
+        tinsert(strs, '">')
+      end
+
+      tinsert(strs, '[')
+      if tdoc.entities then
+        for _,t in pairs(tdoc.entities) do
+          addEntity(t.name, t.value)
+        end
+      else
+        for name,value in pairs(tdoc.tentities) do
+          addEntity(name, value:gsub('%', '&#37;'))
+        end
+      end
+      tinsert(strs, prefix)
+      tinsert(strs, ']')
+    end
+
+    tinsert(strs, '>')
+  end
+
   local elems = tdoc.children
   if elems and elems[1] then
     local emptyTable = {}
 
     local lvl = 1
-    local prefix = indentationText and '\n' or ''
-    local tindent = {prefix}
     local depths = {}
 
     local i = 1
     local e, e2, tag, children, node
-
-    indentationText = indentationText or ''
 
     ::loop::
 
@@ -668,26 +741,25 @@ local function documentToString(tdoc, indentationText, params)
         tinsert(strs, '>')
       end
 
-    -- CDATA
-    elseif e.cdata then
-      tinsert(strs, prefix)
-      tinsert(strs, '<![CDATA[')
-      tinsert(strs, escapeCDATA(e.text))
-      tinsert(strs, ']]>')
+    -- text
+    elseif e.text then
+      -- CDATA
+      if e.cdata then
+        tinsert(strs, prefix)
+        tinsert(strs, '<![CDATA[')
+        tinsert(strs, escapeCDATA(e.text))
+        tinsert(strs, ']]>')
+      else
+        tinsert(strs, prefix)
+        tinsert(strs, escapeText(e.text))
+      end
 
     -- comment
     elseif e.comment then
-      -- TODO
       tinsert(strs, prefix)
       tinsert(strs, '<!--')
       tinsert(strs, escapeComment(e.comment))
       tinsert(strs, '-->')
-
-    -- text
-    else
-      -- TODO Entity
-      tinsert(strs, prefix)
-      tinsert(strs, escapeText(e.text))
     end
 
     i = i + 1
