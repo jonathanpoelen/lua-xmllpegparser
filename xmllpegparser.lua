@@ -1,12 +1,12 @@
 -- from https://github.com/jonathanpoelen/lua-xmllpegparser
 
 local lpeg = require'lpeg'
+local lpeg1_0 = type(lpeg.version) == 'function' -- version is a string since 1.1
 local S = lpeg.S
 local C = lpeg.C
 local R = lpeg.R
 local Ct = lpeg.Ct
 local Cg = lpeg.Cg
-local Cf = lpeg.Cf
 local Cs = lpeg.Cs
 local P = lpeg.P
 local I = lpeg.Cp()
@@ -51,10 +51,12 @@ local _parser = function(v, safeVisitor)
   local Comments = Space0 * (Comment * Space0)^0
 
   local hasAttr = v.accuattr or (v.accuattr ~= false and (v.tag or v.proc))
-  local CAttrs = hasAttr and
-    Cf(Ct'' * (Space1 * CAttr)^0, v.accuattr or rawset) * Space0
-  local Attrs =
-              (Space1 *  Attr)^0                        * Space0
+  local CAttrs = hasAttr and (
+    lpeg1_0  -- Cf is deprecated in 1.1
+    and lpeg.Cf(Ct'' * (Space1 * CAttr)^0, v.accuattr or rawset) * Space0
+    or          Ct'' * (Space1 * CAttr % (v.accuattr or rawset))^0 * Space0
+  )
+  local Attrs =   (Space1 *  Attr)^0                        * Space0
   local ProcAttrs = (v.accuattr or (hasAttr and v.proc)) and CAttrs or Attrs
   local TagAttrs  = (v.accuattr or (hasAttr and v.tag )) and CAttrs or Attrs
 
