@@ -6,10 +6,14 @@
 1. [Installation](#installation)
 2. [Test](#test)
 3. [xmllpegparser API](#xmllpegparser-api)
-    1. [Document structure (default parser)](#document-structure-default-parser)
-    2. [Parser structure](#parser-structure)
-    3. [Visitor structure](#visitor-structure)
-    4. [Default parser limitations](#default-parser-limitations)
+    1. [Parsing](#parsing)
+    2. [Entity](#entity)
+    3. [Parser](#parser)
+    4. [Utility](#utility)
+    5. [Document structure (default parser)](#document-structure-default-parser)
+    6. [Parser structure](#parser-structure)
+    7. [Visitor structure](#visitor-structure)
+    8. [Default parser limitations](#default-parser-limitations)
 5. [Licence](#licence)
 <!-- /summary -->
 
@@ -37,44 +41,79 @@ Run `./example.lua`.
 
 ## xmllpegparser API
 
-- `xmllpegparser.parse(xmlstring[, visitorOrsubEntities[, visitorInitArgs...]])`:\
+### Parsing
+
+- `parse(xmlstring[, visitorOrsubEntities[, visitorInitArgs...]])`:\
 Returns a tuple `document table, (string error or nil)` (see `visitor.finish`).\
 If `subEntities` is `true`, the entities are replaced and a `tentity` member is added to the document `table`.
-- `xmllpegparser.parseFile(filename[, visitorOrsubEntities[, visitorInitArgs...]])`:\
+- `parseFile(filename[, visitorOrsubEntities[, visitorInitArgs...]])`:\
 Returns a tuple `document table, error file or error document`.
-- `xmllpegparser.defaultEntitiyTable()`:\
-Returns the default entity table (` { quot='"', ... }`).
-- `xmllpegparser.createEntityTable(docEntities[, resultEntities])`:\
+
+### Entity
+
+- `defaultEntitiyTable()`:\
+Returns the default entity table (`{ quot='"', ... }`).
+- `createEntityTable(docEntities[, resultEntities])`:\
 Creates an entity table from the document entity table. Return `resultEntities`.
-- `xmllpegparser.mkReplaceEntities(entityTable_or_func)`:\
+- `mkReplaceEntities(entityTable_or_func)`:\
 Returns an LPeg expression that can replace entities
-- `xmllpegparser.replaceEntities(s, entityTable_or_func)`:\
+- `replaceEntities(s, entityTable_or_func)`:\
 Returns a `string`.
-- `xmllpegparser.parser(visitor[, safeVisitor:bool])`:\
+
+### Parsers
+
+- `parser(visitor[, safeVisitor: bool])`:\
 Returns a parser.
 If all visitor functions return `nil` (excepted `accuattr`, `init` and `finish`), then `safeVisitor` may be `true` and the parser will optimize the visitor's calls.
-- `xmllpegparser.lazyParser(visitorCreator)`:\
+- `lazyParser(visitorCreator)`:\
 Returns a parser.\
-`xmllpegparser.parser(visitorCreator())` is used on the first call of `myparser.parse(...)`.
-- `xmllpegparser.mkVisitor(evalEntities:bool, defaultEntities:table|function|nil, withoutPosition)`:\
+`parser(visitorCreator())` is used on the first call of `myparser.parse(...)`.
+- `mkVisitor(evalEntities: bool, defaultEntities: table | function | nil, withoutPosition)`:\
 If `not defaultEntities` and `evalEntities` then `defaultEntities = defaultEntityTable()`.\
 If `withoutPosition`, then `pos` parameter does not exist for the visitor functions except for `finish`.
-- `xmllpegparser.treeParser`:\
-The default parser used by `xmllpegparser.parse(str, false)`
-- `xmllpegparser.treeParserWithReplacedEntities`:\
-The default parser used by `xmllpegparser.parse(str, true)`
-- `xmllpegparser.treeParserWithoutPos`:\
+- `treeParser`:\
+The default parser used by `parse(str, false)`
+- `treeParserWithReplacedEntities`:\
+The default parser used by `parse(str, true)`
+- `treeParserWithoutPos`:\
 Parser without `pos` parameter
-- `xmllpegparser.treeParserWithoutPosWithReplacedEntities`:\
+- `treeParserWithoutPosWithReplacedEntities`:\
 Parser without `pos` parameter
-- `xmllpegparser.enableWithoutPosParser([bool])`:\
+
+### Global parser options
+
+- `enableWithoutPosParser([bool])`:\
 Enable default parser with `treeParserWithoutPos*` version.\
 `enableParserWithoutPos(false)` is same to `setDefaultParsers()`.\
 Returns the previous parsers.
-- `xmllpegparser.setDefaultParsers(parser, parserWithReplacedEntities|bool|nil)`:\
+- `setDefaultParsers(parser, parserWithReplacedEntities | bool | nil)`:\
 If `parserWithReplacedEntities == true`, then `parserWithReplacedEntities = p`.\
 `nil` or `false` value restore the default parser.\
 Returns the previous parsers.
+
+### Utility
+
+- `toString(doc: table, indentationText: nil | string, params: nil | table)`:\
+  - `indentationText` corresponds to the text used at each indentation level. If `nil`, there is no formatting.
+  - `params` is table with
+    - `shortEmptyElements: bool = true`: empty tag are self-closed or not.
+    - `stableAttributes: bool | function = true`: If `true`, attribute are sorted by name. If a function, it takes the attribute table and should return an iterator function that gives the attribute name and its value.
+    - `inlineTextLengthMax: number = 9999999`: a node that contains only one text is formatted on one line. When the text exceeds this value, it is indented.
+    - `escape: table`: table of `function(string):string`
+      - `attr`: text in double quote
+      - `text`: text node
+      - `cdata`: text between `<![CDATA[` and `]]>`
+      - `comment`: text between `<!--` and `-->`
+- `escapeFunctions(escapeAmp: bool = false)`:\
+  Utility function for `params.escape` parameter of `toString`
+  - `escapeAmp`: escape `&` char in text and attribute
+- `escapeComment(string):string`: replace `--` with `—`
+- `escapeAttribute(string):string`: replace `<` with `&lt;` and `"` with `&quot;`
+- `escapeAttributeAndAmp(string):string`: like `escapeAttribute` + replace `&` with `&amp;`
+- `escapeCDATA(string):string`: replace `]]>` with `]]>]]><![CDATA[`
+- `escapeText(string):string`: replace `<` with `&lt;`
+- `escapeTextAndAmp(string):string` replace `<` with `&lt;` and `&` with `&amp;`
+
 
 
 
@@ -91,7 +130,7 @@ document = {
   bad = { children={ ... } } -- when a closed node has no match
   preprocessor = { { pos=integer, tag=string, attrs={ { name=string, value=string }, ... } },
   error = string, -- if error
-  lastpos = numeric, -- last known position of parse()
+  lastpos = number, -- last known position of parse()
   entities = { { pos=integer, name=string, value=string }, ... },
   tentities = { name=value, ... } -- only if subEntities = true
 }
@@ -127,7 +166,7 @@ Each member is optionnal.
   open = function(), -- only for a open node (`<a>` not `<a/>`), called after `tag`.
   close = function(name),
   text = function(pos, text),
-  cdata = function(pos, text), -- or `text` if nil 
+  cdata = function(pos, text), -- or `text` if nil
   comment = function(str)
 }
 ```
@@ -138,7 +177,6 @@ Each member is optionnal.
 - No DTD support
 - Ignore processing instructions
 - Ignore DOCTYPE, parse only ENTITY
-- If several attributes have the same name (allowed by the standard), only the last is kept.
 
 
 ## Licence

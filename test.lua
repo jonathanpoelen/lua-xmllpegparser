@@ -1,5 +1,7 @@
 #!/usr/bin/env lua
 
+print_or_error = (#arg ~= 0 and error or print)
+
 function str(t, prefix)
   if not t then
     return ''
@@ -11,16 +13,11 @@ function str(t, prefix)
   table.sort(orderedIndex)
 
   local s, e = '{\n'
-  for k, i in pairs(orderedIndex) do
+  for _, i in pairs(orderedIndex) do
     e = t[i]
     if type(e) == 'table' then
       if i ~= 'parent' then
-        local has_elem = false
-        for _ in pairs(e) do
-          has_elem = true
-          break
-        end
-        e = has_elem and str(e, prefix .. '  ') or '{}'
+        e = next(e) and str(e, prefix .. '  ') or '{}'
       else
         e = e.tag
       end
@@ -32,27 +29,33 @@ end
 
 r = 0
 
+function printError(a, b, input, err, ierr)
+  -- compute the position where the difference begins
+  local idiffer
+  for i=1,math.min(#a, #b) + 1 do
+    if a:byte(i) ~= b:byte(i) then
+      idiffer = i - 1
+      break
+    end
+  end
+
+  print_or_error('[FAILURE]\n  '
+    .. a:sub(1, idiffer) .. '\x1b[31m' .. a:sub(idiffer+1) .. '\x1b[m'
+    .. '\n  ==\n  '
+    .. b:sub(1, idiffer) .. '\x1b[31m' .. b:sub(idiffer+1) .. '\x1b[m'
+    .. '\n\n with ' .. input
+  )
+
+  if err then print('  ' .. err .. '/' .. ierr) end
+  print()
+
+  r = r + 1
+end
+
 function check(tdoc, err, s, input, ierr, resultError)
   local doc = str(tdoc, '  ')
   if resultError ~= err or s ~= doc then
-    -- compute the position where the difference begins
-    local idiffer
-    for i=1,math.min(#s, #doc) + 1 do
-      if s:byte(i) ~= doc:byte(i) then
-        idiffer = i - 1
-        break
-      end
-    end
-
-    (#arg ~= 0 and error or print)('[FAILURE]\n  '
-      .. s:sub(1, idiffer) .. '\x1b[31m' .. s:sub(idiffer+1) .. '\x1b[m'
-      .. '\n  ==\n  '
-      .. doc:sub(1, idiffer) .. '\x1b[31m' .. doc:sub(idiffer+1) .. '\x1b[m'
-      .. '\n\n with ' .. input
-    )
-    if err then print('  ' .. err .. '/' .. ierr) end
-    print()
-    r = r + 1
+    printError(s, doc, input, err, ierr)
   end
 end
 
@@ -815,6 +818,83 @@ doctypeEq([[{
     path: language.dtd,
   }]],
   '<!DOCTYPE language SYSTEM "language.dtd"[]>')
+
+
+tdoc = xmllpegparser.parse([=[
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE something SYSTEM "something.dtd"
+[
+   <!ENTITY entity1 "something">
+   <!ENTITY entity2 "test">
+]>
+<xml>
+  <lvl1 attribute='&entity1;'>something</lvl1>
+  <lvl1 attribute='&entity1;'>something bla bla bla &entity2;</lvl1>
+  blah blah
+  <![CDATA[ bla &entity1; bla ]]>
+  <lvl1 attribute="value"></lvl1>
+  <other>
+    <lvl2>
+      something
+    </lvl2>
+  </other>
+</xml>
+]=])
+
+function checkToString(tdoc, s, ...)
+  local s2 = xmllpegparser.tostring(tdoc, ...)
+  if s ~= s2 then
+    printError(s:gsub('\n', '\n  '), s2:gsub('\n', '\n  '), 'TODO')
+  end
+end
+
+sxml1 = '<xml>' ..
+  '<lvl1 attribute="&entity1;">something</lvl1>' ..
+  '<lvl1 attribute="&entity1;">something bla bla bla &entity2;</lvl1>' ..
+  'blah blah' ..
+  '<![CDATA[ bla &entity1; bla ]]>' ..
+  '<lvl1 attribute="value"/>' ..
+  '<other>' ..
+      '<lvl2>something</lvl2>' ..
+  '</other>' ..
+'</xml>'
+checkToString({children=tdoc.children}, sxml1)
+
+checkToString(tdoc, '<?xml encoding="UTF-8" version="1.0"?>' .. sxml1)
+
+checkToString(tdoc, [=[
+<?xml encoding="UTF-8" version="1.0"?>
+<xml>
+    <lvl1 attribute="&entity1;">something</lvl1>
+    <lvl1 attribute="&entity1;">something bla bla bla &entity2;</lvl1>
+    blah blah
+    <![CDATA[ bla &entity1; bla ]]>
+    <lvl1 attribute="value"/>
+    <other>
+        <lvl2>something</lvl2>
+    </other>
+</xml>]=], '    ')
+
+checkToString(tdoc, [=[
+<?xml encoding="UTF-8" version="1.0"?>
+<xml>
+..<lvl1 attribute="&amp;entity1;">something</lvl1>
+..<lvl1 attribute="&amp;entity1;">
+....something bla bla bla &amp;entity2;
+..</lvl1>
+..blah blah
+..<![CDATA[ bla &entity1; bla ]]>
+..<lvl1 attribute="value"></lvl1>
+..<other>
+....<lvl2>something</lvl2>
+..</other>
+</xml>]=],
+'..', {
+  inlineTextLengthMax = 10,
+  shortEmptyElements = false,
+  escapes = xmllpegparser.escapeFunctions(true),
+})
+
 
 if 0 == r then
   print('No error')

@@ -366,7 +366,7 @@ end
 --!     bad = { children={ ... } } -- when a closed node has no match
 --!     preprocessor = { { pos=integer, tag=string, attrs={ { name=string, value=string }, ... } },
 --!     error = string, -- if error
---!     lastpos = numeric, -- last known position of parse()
+--!     lastpos = number, -- last known position of parse()
 --!     entities = { { pos=integer, name=string, value=string }, ... },
 --!     tentities = { name=value, ... } -- only if subEntities = true
 --!   }
@@ -430,6 +430,7 @@ end
 --! @param[in] s string : xml data
 --! @param[in,out] visitorOrEvalEntities table|bool|nil : see \c getParser()
 --! @param[in,out] ... argument for visitor.init()
+--! @return table
 local function parse(xmlstring, visitorOrEvalEntities, ...)
   return getParser(visitorOrEvalEntities).parse(xmlstring, ...)
 end
@@ -438,8 +439,282 @@ end
 --! @param filename[in] string
 --! @param[in,out] visitorOrEvalEntities table|bool|nil : see \c getParser()
 --! @param[in,out] ... argument for visitor.init()
+--! @return table
 local function parseFile(filename, visitorOrEvalEntities, ...)
   return getParser(visitorOrEvalEntities).parseFile(filename, ...)
+end
+
+
+local function flatAttrCmp(a, b)
+  return a[1] < b[1]
+end
+
+local tinsert = table.insert
+local tremove = table.remove
+
+local function insertAttrs(t, it, escapeAttr)
+  for name,value in it do
+    tinsert(t, ' ')
+    tinsert(t, name)
+    tinsert(t, '="')
+    tinsert(t, escapeAttr(value))
+    tinsert(t, '"')
+  end
+end
+
+local function toStringComputeIndent(tindent, lvl, indentationText)
+  local prefix = tindent[lvl]
+  if not prefix then
+    prefix = tindent[lvl - 1] .. indentationText
+    tindent[lvl] = prefix
+  end
+  return prefix
+end
+
+local function identity(x)
+  return x
+end
+
+local function escapeComment(s)
+  s = s:gsub('--', '—')
+  return s
+end
+
+local function escapeAttribute(s)
+  s = s:gsub('<', '&lt;'):gsub('"', '&quot;')
+  return s
+end
+
+local function escapeAttributeAndAmp(s)
+  s = s:gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('"', '&quot;')
+  return s
+end
+
+local function escapeCDATA(s)
+  s = s:gsub(']]>', ']]>]]><![CDATA[')
+  return s
+end
+
+local function escapeText(s)
+  s = s:gsub('<', '&lt;')
+  return s
+end
+
+local function escapeTextAndAmp(s)
+  s = s:gsub('&', '&amp;'):gsub('<', '&lt;')
+  return s
+end
+
+--! Returns a table of functions to escape texts
+--! @params[in] escapeAmp bool : escape & char in text and attribute
+--! @return {
+--!   attr = function(string):string,
+--!   text = function(string):string,
+--!   cdata = function(string):string,
+--!   comment = function(string):string,
+--! }
+local function escapeFunctions(escapeAmp)
+  return {
+    attr = escapeAmp and escapeAttributeAndAmp or escapeAttribute,
+    text = escapeAmp and escapeTextAndAmp or escapeText,
+    cdata = escapeCDATA,
+    comment = escapeComment,
+  }
+end
+
+--! Converts a `document table` to string.
+--! @param[in] tdoc table : document table
+--! @param[in] indentationText nil | string :
+--!   Text used to add a level of indentation.
+--!   The nil value corresponds to no formatting.
+--! @param[in] params nil | table :
+--!   Table that corresponds to additional parameters
+--!   - \b shortEmptyElements bool = true :
+--!     If true, elements that contain no content are emitted as a single self-closed tag,
+--!     otherwise they are emitted as a pair of start/end tags.
+--!   - \b stableAttributes bool | function = true :
+--!     If true, the attributes will be sorted by name, otherwise the order
+--!     depends on that of the array (which depends on the interpreter used).
+--!     A function can also be passed. It takes the attribute table and should
+--!     return an iterator function that gives the attribute name and its value.
+--!   - \b inlineTextLengthMax number = 9999999 :
+--!     When a node contains only a single text, the node is formatted on a single line.
+--!     If the text length exceeds the value specified in \c inlineTextLengthMax,
+--!     it will be indented
+--!   - \b escapes table : table of function(string):string
+--!       - \b attr: text in double quote
+--!       - \b text: text node
+--!       - \b cdata: text between <![CDATA[ and ]]>
+--!       - \b comment: text between <!-- and -->
+--! @return string
+local function documentToString(tdoc, indentationText, params)
+  local escapeFns = params and params.escapes
+  -- luacheck: push ignore 431
+  local escapeAttr = escapeFns and escapeFns.attr or identity
+  local escapeText = escapeFns and escapeFns.text or identity
+  local escapeCDATA = escapeFns and escapeFns.cdata or identity
+  local escapeComment = escapeFns and escapeFns.comment or identity
+  -- luacheck: pop
+  local inlineTextLengthMax = params and params.inlineTextLengthMax or 9999999
+  local shortEmptyElements = not params or params.shortEmptyElements == nil or params.shortEmptyElements
+
+  local attrIter
+  if not params or params.stableAttributes == nil or params.stableAttributes == true then
+    attrIter = function(attrs)
+      local flatAttrs = {}
+      for attr,value in pairs(attrs) do
+        tinsert(flatAttrs, {attr,value})
+      end
+
+      table.sort(flatAttrs, flatAttrCmp)
+
+      local idx = 0
+      return function() -- simplified iterator since used only once
+        idx = idx + 1
+        local t = flatAttrs[idx]
+        if t then
+          return t[1], t[2]
+        end
+      end, flatAttrs, nil
+    end
+  elseif params.stableAttributes == false then
+    attrIter = identity
+  else
+    attrIter = params.stableAttributes
+  end
+
+  local strs = {}
+
+  local proc = tdoc.preprocessor
+  if proc then
+    for _, e in pairs(proc) do
+      tinsert(strs, '<?')
+      tinsert(strs, e.tag)
+      insertAttrs(strs, attrIter(e.attrs), escapeAttr)
+      tinsert(strs, '?>')
+    end
+  end
+
+  local elems = tdoc.children
+  if elems and elems[1] then
+    local emptyTable = {}
+
+    local lvl = 1
+    local prefix = indentationText and '\n' or ''
+    local tindent = {prefix}
+    local depths = {}
+
+    local i = 1
+    local e, e2, tag, children, node
+
+    indentationText = indentationText or ''
+
+    ::loop::
+
+    e = elems[i]
+    tag = e.tag
+
+    -- tag
+    if tag then
+      tinsert(strs, prefix)
+      tinsert(strs, '<')
+      tinsert(strs, tag)
+      insertAttrs(strs, attrIter(e.attrs), escapeAttr)
+
+      children = e.children or emptyTable
+
+      -- has at least 2 children or a tag as child
+      if children[2] or (children[1] and children[1].tag) then
+        tinsert(strs, '>')
+
+        tinsert(depths, {elems, i})
+        i = 0
+        elems = children
+        lvl = lvl + 1
+        prefix = toStringComputeIndent(tindent, lvl, indentationText)
+
+      -- only has one text as child
+      elseif children[1] and children[1].text then
+        tinsert(strs, '>')
+        e2 = children[1]
+        -- CDATA
+        if e2.cdata then
+          tinsert(strs, toStringComputeIndent(tindent, lvl+1, indentationText))
+          tinsert(strs, '<![CDATA[')
+          tinsert(strs, escapeCDATA(e2.text))
+          tinsert(strs, ']]>')
+          tinsert(strs, prefix)
+        -- inline text
+        elseif #e2.text <= inlineTextLengthMax then
+          tinsert(strs, escapeText(e2.text))
+        -- text
+        else
+          tinsert(strs, toStringComputeIndent(tindent, lvl+1, indentationText))
+          tinsert(strs, escapeText(e2.text))
+          tinsert(strs, prefix)
+        end
+        tinsert(strs, '</')
+        tinsert(strs, tag)
+        tinsert(strs, '>')
+
+      -- empty short tag
+      elseif shortEmptyElements then
+        tinsert(strs, '/>')
+
+      -- empty tag
+      else
+        tinsert(strs, '></')
+        tinsert(strs, tag)
+        tinsert(strs, '>')
+      end
+
+    -- CDATA
+    elseif e.cdata then
+      tinsert(strs, prefix)
+      tinsert(strs, '<![CDATA[')
+      tinsert(strs, escapeCDATA(e.text))
+      tinsert(strs, ']]>')
+
+    -- comment
+    elseif e.comment then
+      -- TODO
+      tinsert(strs, prefix)
+      tinsert(strs, '<!--')
+      tinsert(strs, escapeComment(e.comment))
+      tinsert(strs, '-->')
+
+    -- text
+    else
+      -- TODO Entity
+      tinsert(strs, prefix)
+      tinsert(strs, escapeText(e.text))
+    end
+
+    i = i + 1
+    e = elems[i]
+
+    -- close parent
+    while not e do
+      node = tremove(depths)
+      if not node then
+        return table.concat(strs, '')
+      end
+      elems = node[1]
+      i = node[2]
+      lvl = lvl - 1
+      prefix = tindent[lvl]
+      tinsert(strs, prefix)
+      tinsert(strs, '</')
+      tinsert(strs, elems[i].tag)
+      tinsert(strs, '>')
+      i = i + 1
+      e = elems[i]
+    end
+
+    goto loop
+  end
+
+  return table.concat(strs, '')
 end
 
 return {
@@ -458,4 +733,12 @@ return {
   parser = parser,
   parse = parse,
   parseFile = parseFile,
+  tostring = documentToString,
+  escapeFunctions = escapeFunctions,
+  escapeComment = escapeComment,
+  escapeAttribute = escapeAttribute,
+  escapeAttributeAndAmp = escapeAttributeAndAmp,
+  escapeCDATA = escapeCDATA,
+  escapeText = escapeText,
+  escapeTextAndAmp = escapeTextAndAmp,
 }
