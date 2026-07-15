@@ -628,7 +628,7 @@ local function documentToString(tdoc, indentationText, params)
     if doctype.ident then
       tinsert(strs, ' ')
       tinsert(strs, doctype.ident)
-      if doctype.ident then
+      if doctype.pubident then
         tinsert(strs, ' "')
         tinsert(strs, doctype.pubident)
         tinsert(strs, '"')

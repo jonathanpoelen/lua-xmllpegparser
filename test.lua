@@ -926,7 +926,7 @@ checkToString({children=tdoc.children}, sxml1)
 
 checkToString(tdoc,
   '<?xml encoding="UTF-8" version="1.0"?>' ..
-  '<!DOCTYPE something SYSTEM "" "something.dtd"[' ..
+  '<!DOCTYPE something SYSTEM "something.dtd"[' ..
     '<!ENTITY entity1 "something">' ..
     '<!ENTITY entity2 "test">' ..
   ']>' ..
@@ -934,7 +934,7 @@ checkToString(tdoc,
 
 checkToString(tdoc, [=[
 <?xml encoding="UTF-8" version="1.0"?>
-<!DOCTYPE something SYSTEM "" "something.dtd"[
+<!DOCTYPE something SYSTEM "something.dtd"[
     <!ENTITY entity1 "something">
     <!ENTITY entity2 "test">
 ]>
@@ -951,7 +951,7 @@ checkToString(tdoc, [=[
 
 checkToString(tdoc, [=[
 <?xml encoding="UTF-8" version="1.0"?>
-<!DOCTYPE something SYSTEM "" "something.dtd"[
+<!DOCTYPE something SYSTEM "something.dtd"[
 ..<!ENTITY entity1 "something">
 ..<!ENTITY entity2 "test">
 ]>
