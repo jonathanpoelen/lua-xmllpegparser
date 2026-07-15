@@ -93,7 +93,7 @@ Returns the previous parsers.
 
 ### Utility
 
-- `toString(doc: table, indentationText: nil | string, params: nil | table)`:\
+- `tostring(doc: table, indentationText: nil | string, params: nil | table)`:\
   - `indentationText` corresponds to the text used at each indentation level. If `nil`, there is no formatting.
   - `params` is table with
     - `shortEmptyElements: bool = true`: empty tag are self-closed or not.
@@ -105,7 +105,7 @@ Returns the previous parsers.
       - `cdata`: text between `<![CDATA[` and `]]>`
       - `comment`: text between `<!--` and `-->`
 - `escapeFunctions(escapeAmp: bool = false)`:\
-  Utility function for `params.escape` parameter of `toString`
+  Utility function for `params.escape` parameter of `tostring`
   - `escapeAmp`: escape `&` char in text and attribute
 - `escapeComment(string):string`: replace `--` with `—`
 - `escapeAttribute(string):string`: replace `<` with `&lt;` and `"` with `&quot;`
